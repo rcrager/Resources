@@ -1,2 +1,5 @@
-# ignore all .Identifier files
+# ignore all .Identifier files? Why isn't it working then?
 *.Identifier
+*.txt
+*.tsv
+*.csv
