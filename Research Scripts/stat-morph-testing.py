@@ -24,7 +24,7 @@ from import_data import get_GS,get_GN,get_sources,disclaimer
 from photutils.segmentation import detect_threshold, detect_sources, deblend_sources
 from photutils.background import Background2D, MedianBackground
 from statmorph.utils.image_diagnostics import make_figure
-from photutils.segmentation import make_2dgaussian_kernel
+from photutils.segmentation import make_2dgaussian_kernel, SegmentationImage
 from astropy.stats import SigmaClip
 #sigma_clipping = SigmaClip(sigma=sigma)
 
@@ -37,10 +37,12 @@ from astropy.utils.exceptions import AstropyWarning
 ## to learn it
 
 
-def test_in_jades():
+def test_in_jades(filter='f277w',output_name='JADES_statmorph_measurements'):
     ###############################
     """
     Try to get statmorph fit for a jades source
+    Input:  filter: NIRCam Filter to select
+            output_name: Filename to output the table of measurements to (saved filename is inclusive of filter name)
     """
     ###############################
     ## making a sample image that is going to be analyzed (with sersic 2d)
@@ -162,7 +164,7 @@ def test_in_jades():
 
     # starting with f444 because it should have the clearest source (maybe not clear detail though)
     #hdul = fits.open('JADES_Fits_Maps/hlsp_jades_jwst_nircam_goods-s-deep_f444w_v2.0_drz.fits')
-    hdul = fits.open('/home/robbler/research/JADES_Fits_Maps/GS/hlsp_jades_jwst_nircam_goods-s-deep_f277w_v2.0_drz.fits')
+    hdul = fits.open(f'/home/robbler/research/JADES_Fits_Maps/GS/hlsp_jades_jwst_nircam_goods-s-deep_{filter}_v2.0_drz.fits')
 
     # catalog file
     tmp = fits.open('research/JADES catalog/hlsp_jades_jwst_nircam_goods-s-deep_photometry_v2.0_catalog.fits')
@@ -191,7 +193,7 @@ def test_in_jades():
     ##### open goods north files ... #######
     # starting with f444 because it should have the clearest source (maybe not clear detail though)
     #hdul = fits.open('JADES_Fits_Maps/hlsp_jades_jwst_nircam_goods-s-deep_f444w_v2.0_drz.fits')
-    hdul = fits.open('research/JADES_Fits_Maps/GN/hlsp_jades_jwst_nircam_goods-n_f277w_v1.0_drz.fits')
+    hdul = fits.open(f'research/JADES_Fits_Maps/GN/hlsp_jades_jwst_nircam_goods-n_{filter}_v1.0_drz.fits')
 
     # catalog file
     tmp = fits.open('research/JADES catalog/hlsp_jades_jwst_nircam_goods-n_photometry_v1.0_catalog.fits')
@@ -219,6 +221,8 @@ def test_in_jades():
     # maybe this is the weight value we're looking for for statmorph (one value for each entry, so how would I convert this to an image to be used with statmorph though?)
     #print(jades_catalog[3]['F444W_WHT'])
 
+    fwhms = {'F070W':0.742,'F090W':0.968,'F115W':1.194,'F150W':1.581,'F200W':2.065,'F277W':1.397,'F356W':1.810,'F444W':2.222}
+    # ^ as described in https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-performance/nircam-point-spread-functions#gsc.tab=0
 
     ###################
     """
@@ -237,7 +241,8 @@ def test_in_jades():
     # ind = np.where(source_names==kirk_id)[0][0]
     # detection radius ~ 1" for Kirkpatrick data, so we want anything within a ~3" box
     # maybe change this later to reflect the light distribution (20%, 80% radii)
-    # size = 3
+
+    size = 6 # cutout size in arcsec, might need to tweak depending on the source size
     
     # jades_id = jades_names[ind]
     # get jades id counterpart coordinates
@@ -272,11 +277,10 @@ def test_in_jades():
     '''    
 
     # importing psf from testing fits file first (f444w)
-    psf = fits.getdata('/home/robbler/research/JADES catalog/PSF_NIRCam_in_flight_opd_filter_F444W.fits')
+    psf = fits.getdata(f'/home/robbler/research/JADES catalog/PSF_NIRCam_in_flight_opd_filter_{filter.upper()}.fits')
     ### for testing with a specific ID
     # search_one_id = np.array([kirk_id])
     search_ids = sources['ID']
-    # search_ids = np.array(['GN_IRS17'])
     full_output = sources
     cols = ['Flag','Concentration (C)','Asymmetry (A)','Outer Asymmetry (Ao)','Smoothness (S)','Gini','M20','Gini-M20-Merger','S/N','Cutout Size (pix)']
     # for id in search_one_id:
@@ -298,44 +302,34 @@ def test_in_jades():
             jades_seg = gs_jades_seg
             wcs_coords = gs_wcs_coords
 
-        # ind = np.where(source_names==id)[0][0]
-        # jades_id = int(jades_names[ind])
-        #hdul = fits.open('/home/robbler/research/CEERS_statmorph_testing/hlsp_ceers_jwst_nircam_nircam10_f200w_dr0.6_i2d.fits.gz')
-        # segmentation map
-        # don't have the segmentation map available so need to use something like WebbPSF to find psf then create a segmentation map 
-        # from this with anything that has a SNR of >2.5 (standard) or sigma of ??? 
-        #seg = fits.getdata('/home/robbler/research/CEERS_statmorph_testing/ceers5_f200w_segm.fits.gz')
-        #sci = hdul[1].data # for getting the science image
-        # wcs_coords = WCS(hdul[1].header) # getting wcs from header
-        # hdul.close()
-        size = 4.5 # cutout size in arcsec, might need to tweak depending on the source size
-        # print('------------')
         jades_id_raw = data_source['JADES ID']
         jades_id = 0
         if(' ' in jades_id_raw):
             jades_id = int(jades_id_raw.split(' ')[0]) # splitting because sometimes I have a secondary source on there, but the main is always listed first (this only happens 2 times in our sample)
         else:
             jades_id = int(jades_id_raw)
-        # print(data_source['JADES ID'].values[0].contains(' '))
 
         source = jades_catalog[jades_catalog['ID']==jades_id] # make sure jades_id is an integer, otherwise it just returns the first item NOT AN ERROR??
         position = SkyCoord(source['RA'],source['DEC'],unit='deg')
         img = Cutout2D(sci,position,size*units.arcsec,wcs=wcs_coords,copy=True).data
+
+        # get the segmap for the specific source
         seg = Cutout2D(jades_seg,position,size*units.arcsec,wcs=wcs_coords,copy=True).data
-        m = np.mean(img)
-        s = np.std(img)
+        seg_img = SegmentationImage(seg)
+        seg_img_id = np.where(seg_img.labels==jades_id)[0][0] # for running statmorph on only the jades ID we want
+        # m = np.mean(img)
+        # s = np.std(img)
         sigma = 2.0 # detection threshold =1.5*sigma
-        fwhm = 2.222
-        # ^ as described in https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-performance/nircam-point-spread-functions#gsc.tab=0
-        # fwhm = .145
+        fwhm = fwhms[filter.upper()]
+
         # making a 2d gaussian kernel with fwhm 3 pixels (Ren paper uses 0.2 Petrosian Radius)
         # then getting a sample of the background and using that as the threshold for detection 
         # instead of just sigma ##################
-        npix = 10 # min pixels for connection
+        npix = 60 # min pixels for connection
         # from astropy.stats import SigmaClip
-        # sigma_clip = SigmaClip(sigma=3.5)
-        # bkg_estimator = MedianBackground()
+        sigma_clip = SigmaClip(sigma=4.0,maxiters=10)
         # sigma_clip = SigmaClip(sigma=sigma+2.0)
+        # bkg_estimator = MedianBackground(sigma_clip=sigma_clip)
         # bkg = Background2D(img, (9,9), filter_size=(13,13), bkg_estimator=bkg_estimator)
         # bkg = Background2D(img,(25,25),filter_size=(9,9),sigma_clip=sigma_clip,bkg_estimator=bkg_estimator)
         # img -= bkg.background  # subtract the background
@@ -344,20 +338,25 @@ def test_in_jades():
         # convolved_image = convolve(img,psf[0:100][0:100])
         # convolved_image = convolve(img,psf)
         #threshold = detect_threshold(convolved_data,sigma)
-        threshold = detect_threshold(img,sigma)
+        threshold = detect_threshold(convolved_data,sigma,sigma_clip=sigma_clip)
         #mean,_,std = sigma_clipped_stats(img)
         #threshold = sigma*std
         # make the segmentation map using the bg subtracted image, threshold, & number of required connected pixels
         segmap = detect_sources(convolved_data,threshold,npix)
         # then separate connected segmentation sources by deblending them
-        deblended_segmap = deblend_sources(convolved_data,segmap,npixels=npix,nlevels=16,contrast=0.3) # nlevel=32 & contrast=0.01
+        deblended_segmap = deblend_sources(convolved_data,segmap,npixels=npix,nlevels=32,contrast=0.5) # nlevel=32 & contrast=0.01
+        
         # segmap_final = convolve(deblended_segmap,seg)
         # deblended_segmap = seg # testing with no deblending
         # plt.imshow(segmap,origin='lower')
         # plt.show()
-        # plt.imshow(deblended_segmap,origin='lower')
+        # from matplotlib.gridspec import GridSpec
+        # fig = plt.figure(figsize=(10,6))
+        # gs = GridSpec(1, 2, figure=fig)
+        # fig.add_subplot(gs[0, 0]).imshow(deblended_segmap,origin='lower')
+        # fig.add_subplot(gs[0, 1]).imshow(img,origin='lower',cmap='gray_r')
         # plt.show()
-
+        # exit()
         # plt.imshow(img, origin='lower',norm=colors.PowerNorm(gamma=0.5,vmin=(m-s),vmax=(m+8*s)),cmap='gray_r')
         # plt.show()
 
@@ -368,12 +367,12 @@ def test_in_jades():
         seg_id = np.where(areas==np.max(areas))[0][0]+1
         #################################################
 
-        source_gain = source['F277W_WHT'] # this seems wrong, need to figure out weightmap issue
+        source_gain = source[f'{filter.upper()}_WHT'] # this seems wrong, need to figure out weightmap issue
         # source_gain = 1e7 # used in example (apparently fairly high though)
         ### ^^^^ maybe useful later for all nircam data gain map
         ### https://jwst-pipeline.readthedocs.io/en/latest/jwst/gain_scale/description.html
         # morph_full = statmorph.source_morphology(img,deblended_segmap,gain=source_gain,psf=psf,cutout_extent=2,verbose=True) # maybe cutout_extent=1?
-        morph = statmorph.SourceMorphology(img,deblended_segmap,seg_id,gain=source_gain,cutout_extent=2.0,skybox_size=64,verbose=False) # maybe cutout_extent=1?
+        morph = statmorph.SourceMorphology(img,seg_img,jades_id,gain=source_gain,skybox_size=64,verbose=False) # maybe cutout_extent=1?
         # morph_full = statmorph.source_morphology(img,deblended_segmap,gain=source_gain,cutout_extent=2.0,skybox_size=64,verbose=True) # maybe cutout_extent=1?
         # morph = morph_full[seg_id]
         
@@ -398,14 +397,13 @@ def test_in_jades():
         stat_rows[c,12] = (f'({morph.xmax_stamp-morph.xmin_stamp},{morph.ymax_stamp-morph.ymin_stamp})') # size of cutout
         c+=1
         '''
+        print(f'----------------')
         print(f'[---] Searching for Kirk ID: {search_id}')
         print(f'[---] Searching for JADES ID: {jades_id}')
         print(f'[---] Found JADES ID: {source["ID"][0]}')
         print(f'[>>>] Cutout size being inputted: {img.shape}')
         print(f'Source location: {position}')
-        print(f'----------------')
         
-        # tmp_df = pd.DataFrame({"a":[1, 2, 3],"b":[5, 6, 7],"c":[1, 5, 4]})
         row.append(morph.flag)
         row.append(morph.concentration)
         row.append(morph.asymmetry)
@@ -430,11 +428,11 @@ def test_in_jades():
         print(f'S/N (per pixel): {morph.sn_per_pixel}')
         
         fig = make_figure(morph)
-        plt.savefig(f'research/statmorph_output/{search_id}',dpi=300)
-        plt.close()
+        plt.savefig(f'research/statmorph_output/size_testing/{size}_{filter}_{search_id}',dpi=100)
         # plt.show()
+        plt.close()
 
-    full_output.to_csv('research/statmorph_output/JADES-Statmorph-measurements.tsv','\t')
+    full_output.to_csv(f'research/statmorph_output/{size}_{filter}_{output_name}.tsv','\t')
     print('[!!!] Finished statmorph measurements -- outputing table...')
     print(full_output)
     disclaimer()
@@ -628,7 +626,7 @@ def test_in_ceers():
 
 
 # test_in_ceers()
-test_in_jades()
+test_in_jades(output_name='JADES_statmorph_measurements_size_6')
 
 
 
