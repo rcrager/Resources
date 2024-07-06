@@ -7,7 +7,6 @@ from matplotlib.gridspec import GridSpec
 import os
 import time
 
-
 ### we could automatically download the analysis, but it involves google api & cloud project blah blah too much time
 ### see disclaimer() fucntion
 working_directory = "/home/robbler/research/Analysis_graphs/"
@@ -464,6 +463,37 @@ def compare_subsample():
     # plt.show()
     '''
 
+### done with the visual comparison, moving to statmorph analysis
+
+### import the statmorph measurements tsv files ***
+### only importing one filter for now just for testing
+
+nir_filter = 'f444w'
+stat_measures = f"research/statmorph_output/{nir_filter}_6_JADES_statmorph_measurements.tsv"
+stats = pd.read_csv(stat_measures,sep='\t')
+stats.sort_values(by='ID',ascending=True,inplace=True)
+agn_dominated = table.query('`AGN(%)`>=50')
+sf_dominated = table.query('`AGN(%)`<50')
+
+def A_S_scatter():
+    ### scatter the asymmetry vs smoothness (clumpiness) measurements
+    # agn_stats= stats[(stats['ID'].str.contains(id,regex=False))].iloc[0]
+    agn_stats = stats[(stats['ID'].isin(agn_dominated['Properties']))]
+    sf_stats = stats[stats['ID'].isin(sf_dominated['Properties'])]
+
+    plt.scatter(agn_stats['Smoothness (S)'],agn_stats['Asymmetry (A)'],label='AGN')
+    plt.scatter(sf_stats['Smoothness (S)'],sf_stats['Asymmetry (A)'],label='SF')
+    plt.xlabel('Clumpiness (S)')
+    plt.ylabel('Asymmetry (A)')
+    plt.legend()
+    plt.ylim((-.1,.9))
+    plt.xlim((-.025,.125))
+    plt.title(f'{nir_filter.upper()} A vs S')
+    plt.gca().invert_yaxis()
+    plt.show()
+
+
+
 # agn_frac_hist()
 # type_z_hist()
 
@@ -472,7 +502,10 @@ def compare_subsample():
 
 # agn_frac_merger_hist()
 # agn_frac_merger_scatter()
-compare_subsample()
+# compare_subsample()
+A_S_scatter()
+
+
 
 
 disclaimer()

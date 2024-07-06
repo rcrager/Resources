@@ -37,10 +37,10 @@ from astropy.utils.exceptions import AstropyWarning
 ## to learn it
 
 
-def test_in_jades(filter='f277w',output_name='JADES_statmorph_measurements'):
+def run_in_jades(filter='f277w',output_name='JADES_statmorph_measurements',use_grizli=False):
     ###############################
     """
-    Try to get statmorph fit for a jades source
+    Get statmorph fit for a jades source
     Input:  filter: NIRCam Filter to select
             output_name: Filename to output the table of measurements to (saved filename is inclusive of filter name)
     """
@@ -164,13 +164,25 @@ def test_in_jades(filter='f277w',output_name='JADES_statmorph_measurements'):
 
     # starting with f444 because it should have the clearest source (maybe not clear detail though)
     #hdul = fits.open('JADES_Fits_Maps/hlsp_jades_jwst_nircam_goods-s-deep_f444w_v2.0_drz.fits')
-    hdul = fits.open(f'/home/robbler/research/JADES_Fits_Maps/GS/hlsp_jades_jwst_nircam_goods-s-deep_{filter}_v2.0_drz.fits')
+    hdul=None
+    gs_whtmap = None
+    gs_jades_seg = None
+
+    ### try to use the grizli data reduction otherwise use jades
+    if(use_grizli):
+        grizli_hdul = fits.open(f'/home/robbler/research/grizli-reductions/gds-grizli-v7.2-{filter}-clear_drc_sci.fits')
+        hdul=grizli_hdul
+        gs_whtmap = fits.open(f'/home/robbler/research/grizli-reductions/gds-grizli-v7.2-{filter}-clear_drc_wht.fits')[0].data
+        gs_jades_seg = fits.getdata('/home/robbler/research/grizli-reductions/gds-grizli-v7.2-ir_seg.fits')
+    else:
+        hdul = fits.open(f'/home/robbler/research/JADES_Fits_Maps/GS/hlsp_jades_jwst_nircam_goods-s-deep_{filter}_v2.0_drz.fits')
+        # segmentation map
+        gs_jades_seg = fits.getdata('/home/robbler/research/JADES_Fits_Maps/GS/hlsp_jades_jwst_nircam_goods-s-deep_segmentation_v2.0_drz.fits')
+
+
 
     # catalog file
     tmp = fits.open('research/JADES catalog/hlsp_jades_jwst_nircam_goods-s-deep_photometry_v2.0_catalog.fits')
-
-    # segmentation map
-    gs_jades_seg = fits.getdata('/home/robbler/research/JADES_Fits_Maps/GS/hlsp_jades_jwst_nircam_goods-s-deep_segmentation_v2.0_drz.fits')
 
     # generate PSF for current filter
     # nc = webbpsf.NIRCam()
@@ -180,9 +192,13 @@ def test_in_jades(filter='f277w',output_name='JADES_statmorph_measurements'):
     # exit()
 
     # .fits file (image version)
-    gs_sci = hdul[1].data # for getting the science image
-    gs_wcs_coords = WCS(hdul[1].header) # getting wcs from header
-    #print(f'wcs_header_info: {hdul[1].header}')
+    if(use_grizli):
+        gs_sci = hdul[0].data
+        gs_wcs_coords = WCS(hdul[0].header)
+    else:
+        gs_sci = hdul[1].data # for getting the science image
+        gs_wcs_coords = WCS(hdul[1].header) # getting wcs from header
+        #print(f'wcs_header_info: {hdul[1].header}')
     hdul.close()
 
     # catalog file
@@ -193,13 +209,22 @@ def test_in_jades(filter='f277w',output_name='JADES_statmorph_measurements'):
     ##### open goods north files ... #######
     # starting with f444 because it should have the clearest source (maybe not clear detail though)
     #hdul = fits.open('JADES_Fits_Maps/hlsp_jades_jwst_nircam_goods-s-deep_f444w_v2.0_drz.fits')
-    hdul = fits.open(f'research/JADES_Fits_Maps/GN/hlsp_jades_jwst_nircam_goods-n_{filter}_v1.0_drz.fits')
+    
+    ### try to use the grizli data reduction otherwise use jades
+    gn_whtmap = None
+    gn_jades_seg = None
+    if(use_grizli):
+        grizli_hdul = fits.open(f'/home/robbler/research/grizli-reductions/gdn-grizli-v7.3-{filter}-clear_drc_sci.fits')
+        hdul=grizli_hdul
+        gn_whtmap = fits.open(f'/home/robbler/research/grizli-reductions/gdn-grizli-v7.3-{filter}-clear_drc_wht.fits')[0].data
+        gn_jades_seg = fits.getdata('/home/robbler/research/grizli-reductions/gdn-grizli-v7.3-ir_seg.fits')
+    else:
+        hdul = fits.open(f'research/JADES_Fits_Maps/GN/hlsp_jades_jwst_nircam_goods-n_{filter}_v1.0_drz.fits')
+        # segmentation map
+        gn_jades_seg = fits.getdata('research/JADES_Fits_Maps/GN/hlsp_jades_jwst_nircam_goods-n_segmentation_v1.0_drz.fits')
 
     # catalog file
     tmp = fits.open('research/JADES catalog/hlsp_jades_jwst_nircam_goods-n_photometry_v1.0_catalog.fits')
-
-    # segmentation map
-    gn_jades_seg = fits.getdata('research/JADES_Fits_Maps/GN/hlsp_jades_jwst_nircam_goods-n_segmentation_v1.0_drz.fits')
 
     # generate PSF for current filter
     # nc = webbpsf.NIRCam()
@@ -209,9 +234,12 @@ def test_in_jades(filter='f277w',output_name='JADES_statmorph_measurements'):
     # exit()
 
     # .fits file (image version)
-    gn_sci = hdul[1].data # for getting the science image
-    gn_wcs_coords = WCS(hdul[1].header) # getting wcs from header
-    #print(f'wcs_header_info: {hdul[1].header}')
+    if(use_grizli):
+        gn_sci = hdul[0].data
+        gn_wcs_coords = WCS(hdul[0].header)
+    else:
+        gn_sci = hdul[1].data # for getting the science image
+        gn_wcs_coords = WCS(hdul[1].header) # getting wcs from header
     hdul.close()
 
     # catalog file
@@ -235,9 +263,7 @@ def test_in_jades(filter='f277w',output_name='JADES_statmorph_measurements'):
     
     # source_names, jades_names, source_coords = get_GS()
     # source_names = np.array(source_names)
-    
-    # kirk_id = 'GS_IRS21' # look at a high agn spheroid-like source for testing
-    
+        
     # ind = np.where(source_names==kirk_id)[0][0]
     # detection radius ~ 1" for Kirkpatrick data, so we want anything within a ~3" box
     # maybe change this later to reflect the light distribution (20%, 80% radii)
@@ -277,30 +303,32 @@ def test_in_jades(filter='f277w',output_name='JADES_statmorph_measurements'):
     '''    
 
     # importing psf from testing fits file first (f444w)
-    psf = fits.getdata(f'/home/robbler/research/JADES catalog/PSF_NIRCam_in_flight_opd_filter_{filter.upper()}.fits')
+    # psf = fits.getdata(f'/home/robbler/research/JADES catalog/PSF_NIRCam_in_flight_opd_filter_{filter.upper()}.fits')
     ### for testing with a specific ID
     # search_one_id = np.array([kirk_id])
     search_ids = sources['ID']
     full_output = sources
-    cols = ['Flag','Concentration (C)','Asymmetry (A)','Outer Asymmetry (Ao)','Smoothness (S)','Gini','M20','Gini-M20-Merger','S/N','Cutout Size (pix)']
+    cols = ['Filter','Flag','Concentration (C)','Asymmetry (A)','Outer Asymmetry (Ao)','Smoothness (S)','Gini','M20','Gini-M20-Merger','Multimode (M)','Intensity (I)','Deviation (D)','S/N','Cutout Size (pix)']
     # for id in search_one_id:
     for id in search_ids:
         row = []
         # data_source = sources[(sources['ID'].str.contains(id))]
         data_source = sources[(sources['ID'].str.contains(id,regex=False))].iloc[0]
         search_id = id
-        jades_catalog,sci,jades_seg,wcs_coords = (None for i in range(4))
+        jades_catalog,sci,jades_seg,wcs_coords,whtmap = (None for i in range(5))
 
         if(id.startswith('GN')):
             jades_catalog = gn_jades_catalog
             sci = gn_sci
             jades_seg = gn_jades_seg
             wcs_coords = gn_wcs_coords
+            whtmap = gn_whtmap
         if(id.startswith('GS')):
             jades_catalog = gs_jades_catalog
             sci = gs_sci
             jades_seg = gs_jades_seg
             wcs_coords = gs_wcs_coords
+            whtmap = gs_whtmap
 
         jades_id_raw = data_source['JADES ID']
         jades_id = 0
@@ -311,12 +339,20 @@ def test_in_jades(filter='f277w',output_name='JADES_statmorph_measurements'):
 
         source = jades_catalog[jades_catalog['ID']==jades_id] # make sure jades_id is an integer, otherwise it just returns the first item NOT AN ERROR??
         position = SkyCoord(source['RA'],source['DEC'],unit='deg')
-        img = Cutout2D(sci,position,size*units.arcsec,wcs=wcs_coords,copy=True).data
+        try:
+            img = Cutout2D(sci,position,size*units.arcsec,wcs=wcs_coords,copy=True).data
+            wht=None
+            if(use_grizli):
+                wht = Cutout2D(whtmap,position,size*units.arcsec,wcs=wcs_coords,copy=True).data
+            # get the segmap for the specific source
+            seg = Cutout2D(jades_seg,position,size*units.arcsec,wcs=wcs_coords,copy=True).data
+            seg_img = SegmentationImage(seg)
+        except:
+            print(f'[!!!] ERROR with IMG for {search_id}')
+            continue
 
-        # get the segmap for the specific source
-        seg = Cutout2D(jades_seg,position,size*units.arcsec,wcs=wcs_coords,copy=True).data
-        seg_img = SegmentationImage(seg)
-        seg_img_id = np.where(seg_img.labels==jades_id)[0][0] # for running statmorph on only the jades ID we want
+
+        # seg_img_id = np.where(seg_img.labels==jades_id)[0][0] # for running statmorph on only the jades ID we want
         # m = np.mean(img)
         # s = np.std(img)
         sigma = 2.0 # detection threshold =1.5*sigma
@@ -361,10 +397,12 @@ def test_in_jades(filter='f277w',output_name='JADES_statmorph_measurements'):
         # plt.show()
 
         ## attempt to find the biggest segmap part, and fit that within the cutout
-        areas = np.zeros([len(deblended_segmap.labels)])
-        for i in deblended_segmap.labels:
-            areas[i-1] = deblended_segmap.get_area(i)
-        seg_id = np.where(areas==np.max(areas))[0][0]+1
+        areas = np.zeros([len(seg_img.labels)])
+        v=0
+        areas = seg_img.get_areas(seg_img.labels)
+        # for i in seg_img.labels:
+            # v+=1
+        seg_id = seg_img.labels[np.where(areas==np.max(areas))[0][0]]
         #################################################
 
         source_gain = source[f'{filter.upper()}_WHT'] # this seems wrong, need to figure out weightmap issue
@@ -372,7 +410,11 @@ def test_in_jades(filter='f277w',output_name='JADES_statmorph_measurements'):
         ### ^^^^ maybe useful later for all nircam data gain map
         ### https://jwst-pipeline.readthedocs.io/en/latest/jwst/gain_scale/description.html
         # morph_full = statmorph.source_morphology(img,deblended_segmap,gain=source_gain,psf=psf,cutout_extent=2,verbose=True) # maybe cutout_extent=1?
-        morph = statmorph.SourceMorphology(img,seg_img,jades_id,gain=source_gain,skybox_size=64,verbose=False) # maybe cutout_extent=1?
+        morph = None
+        if(use_grizli):
+            morph = statmorph.SourceMorphology(img,seg_img,seg_id,weightmap=wht,skybox_size=64,verbose=False)
+        else:
+            morph = statmorph.SourceMorphology(img,seg_img,jades_id,gain=source_gain,skybox_size=64,verbose=False) # maybe cutout_extent=1?
         # morph_full = statmorph.source_morphology(img,deblended_segmap,gain=source_gain,cutout_extent=2.0,skybox_size=64,verbose=True) # maybe cutout_extent=1?
         # morph = morph_full[seg_id]
         
@@ -404,6 +446,7 @@ def test_in_jades(filter='f277w',output_name='JADES_statmorph_measurements'):
         print(f'[>>>] Cutout size being inputted: {img.shape}')
         print(f'Source location: {position}')
         
+        row.append(filter)
         row.append(morph.flag)
         row.append(morph.concentration)
         row.append(morph.asymmetry)
@@ -412,6 +455,9 @@ def test_in_jades(filter='f277w',output_name='JADES_statmorph_measurements'):
         row.append(morph.gini)
         row.append(morph.m20)
         row.append(morph.gini_m20_merger)
+        row.append(morph.multimode)
+        row.append(morph.intensity)
+        row.append(morph.deviation)
         row.append(morph.sn_per_pixel)
         row.append(str(img.shape))
 
@@ -425,14 +471,20 @@ def test_in_jades(filter='f277w',output_name='JADES_statmorph_measurements'):
         print(f'Gini: {morph.gini}')
         print(f'M20: {morph.m20}')
         print(f'Gini-M20 merger stat: {morph.gini_m20_merger}')
+        print(f'Multimode (M): {morph.multimode}')
+        print(f'Intensity: {morph.intensity}')
+        print(f'Deviation: {morph.deviation}')
         print(f'S/N (per pixel): {morph.sn_per_pixel}')
         
         fig = make_figure(morph)
-        plt.savefig(f'research/statmorph_output/size_testing/{size}_{filter}_{search_id}',dpi=100)
+        savepath = (f'research/statmorph_output/{filter}/{size}_{search_id}')
+        if(use_grizli):
+            savepath = (f'research/statmorph_output/grizli/{filter}/{size}_{search_id}')
+        plt.savefig(savepath,dpi=100)
         # plt.show()
         plt.close()
 
-    full_output.to_csv(f'research/statmorph_output/{size}_{filter}_{output_name}.tsv','\t')
+    full_output.to_csv(f'research/statmorph_output/{filter}_{size}_{output_name}.tsv','\t')
     print('[!!!] Finished statmorph measurements -- outputing table...')
     print(full_output)
     disclaimer()
@@ -626,7 +678,7 @@ def test_in_ceers():
 
 
 # test_in_ceers()
-test_in_jades(output_name='JADES_statmorph_measurements_size_6')
+run_in_jades(filter='f277w',use_grizli=True,output_name='grizli-statmorph-measurements')
 
 
 
