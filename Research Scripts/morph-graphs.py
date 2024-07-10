@@ -17,13 +17,16 @@ detailed_file = working_directory+details_filename
 
 
 # get the last time the file was updated
-ti_m = os.path.getmtime(file)
-m_ti = time.ctime(ti_m)
+# ti_m = os.path.getmtime(file)
+# m_ti = time.ctime(ti_m)
 
-def disclaimer():
-    print(f"[!!!] Reference file was last updated at: {m_ti}")
+def disclaimer(input_file):
+    ti_m = os.path.getmtime(input_file)
+    m_ti = time.ctime(ti_m)
+    in_filename = input_file.split('/')[-1]
+    print(f"[!!!] Reference file ({in_filename}) was last updated at: {m_ti}")
 
-disclaimer()
+disclaimer(file)
 
 
 table = pd.read_csv(file,sep='\t')
@@ -221,8 +224,8 @@ def agn_frac_z():
     comp_sample = np.empty(len(morph_types),dtype=object)
     pure_agn_sample = np.empty(len(morph_types),dtype=object)
     sf_nums,comp_nums,pure_agn_nums = [np.zeros(len(morph_types)) for i in range(3)]
-    sf_sample_table = table.query('`AGN(%)`<=20')
-    comp_sample_table = table.query('`AGN(%)`>20 & `AGN(%)`<80')
+    sf_sample_table = table.query('`AGN(%)`<20')
+    comp_sample_table = table.query('`AGN(%)`>=20 & `AGN(%)`<80')
     pure_sample_table = table.query('`AGN(%)`>=80')
     total_sf = sf_sample_table.shape[0]
     total_comp = comp_sample_table.shape[0]
@@ -468,30 +471,132 @@ def compare_subsample():
 ### import the statmorph measurements tsv files ***
 ### only importing one filter for now just for testing
 
-nir_filter = 'f444w'
-stat_measures = f"research/statmorph_output/{nir_filter}_6_JADES_statmorph_measurements.tsv"
+nir_filter = 'f277w'
+stat_measures = f"research/statmorph_output/{nir_filter}_6_jades-statmorph-measurements.tsv"
 stats = pd.read_csv(stat_measures,sep='\t')
+disclaimer(stat_measures)
 stats.sort_values(by='ID',ascending=True,inplace=True)
-agn_dominated = table.query('`AGN(%)`>=50')
-sf_dominated = table.query('`AGN(%)`<50')
+
+agn_class_dom = table.query('`AGN(%)`>=80')
+comp_class_dom = table.query('`AGN(%)`<80 & `AGN(%)`>=20')
+sf_class_dom = table.query('`AGN(%)`<20')
+agn_stats_dom = stats[(stats['ID'].isin(agn_class_dom['Properties']))]
+comp_stats_dom = stats[(stats['ID'].isin(comp_class_dom['Properties']))]
+sf_stats_dom = stats[stats['ID'].isin(sf_class_dom['Properties'])]
+
+#### sort into their appropriate visual classification bins
+labels = ['Mostly Disk', 'Mostly Spheroid', 'Mostly Irregular','Disk+Spheroid','Disk+Irregular','Irregular+Spheroid','Disk+Irregular+Spheroid','Unclassifiable']
+symbols = ['*','o','^','D','x','h','P','s']
+classes = np.empty(len(labels),dtype=object)
+stats_table = np.empty(len(labels),dtype=object)
+v=0
+for i in labels:
+    tmp = table.query(f'`Classification`=="{i}"')
+    stat_tmp = stats[stats['ID'].isin(tmp['Properties'])]
+    classes[v] = tmp
+    stats_table[v] = stat_tmp
+    ind = labels.index(i)
+    v+=1
+
 
 def A_S_scatter():
     ### scatter the asymmetry vs smoothness (clumpiness) measurements
-    # agn_stats= stats[(stats['ID'].str.contains(id,regex=False))].iloc[0]
-    agn_stats = stats[(stats['ID'].isin(agn_dominated['Properties']))]
-    sf_stats = stats[stats['ID'].isin(sf_dominated['Properties'])]
-
-    plt.scatter(agn_stats['Smoothness (S)'],agn_stats['Asymmetry (A)'],label='AGN')
-    plt.scatter(sf_stats['Smoothness (S)'],sf_stats['Asymmetry (A)'],label='SF')
+    plt.scatter(agn_stats_dom['Smoothness (S)'],agn_stats_dom['Asymmetry (A)'],label='AGN')
+    plt.scatter(comp_stats_dom['Smoothness (S)'],comp_stats_dom['Asymmetry (A)'],label='Composite')
+    plt.scatter(sf_stats_dom['Smoothness (S)'],sf_stats_dom['Asymmetry (A)'],label='SF')
     plt.xlabel('Clumpiness (S)')
     plt.ylabel('Asymmetry (A)')
     plt.legend()
-    plt.ylim((-.1,.9))
-    plt.xlim((-.025,.125))
+    # plt.ylim((-.1,.9))
+    # plt.xlim((-.025,.125))
     plt.title(f'{nir_filter.upper()} A vs S')
     plt.gca().invert_yaxis()
     plt.show()
 
+def A_agn_scatter():
+    ### scatter the given xlabel vs ylabel & include highlighting of different visual classifications
+    ### give savename (include file extension (.png))
+    ### xsearch & ysearch are used for the table searching (if it's different than what you're labeling it as)
+    ### also highlight the agn regions (agn, composite, sf)
+    xlabel = 'AGN (%)'
+    ylabel = 'Asymmetry (A)'
+    savename = f'{nir_filter}_AGN_A_statmorph.png'
+    xsearch='AGN(%)'
+    ysearch=''
+    
+    xsearch=xlabel if xsearch=='' else xsearch
+    ysearch=ylabel if ysearch=='' else ysearch
+
+    ind = 0
+    for i in classes:
+        if(not i.empty):
+            plt.scatter(i[xsearch],stats_table[ind][ysearch],marker=symbols[ind],label=labels[ind])
+        ind+=1
+
+    plt.ylabel(ylabel)
+    plt.xlabel(xlabel)
+
+    # Highlight the agn regions
+    y_max = plt.gca().get_ylim()[1]
+    x_max = plt.gca().get_xlim()[1]
+
+    plt.axvspan(80, 100, color='lightgray', alpha=0.3)
+    plt.text(x=.90*x_max, y=.9*y_max, s='AGN', fontsize=12, ha='center', va='center')
+    plt.axvspan(20, 80, color='lightgray', alpha=0.3)
+    plt.text(x=.50*x_max, y=.9*y_max, s='Composite', fontsize=12, ha='center', va='center')
+    plt.axvspan(0, 20, color='lightgray', alpha=0.3)
+    plt.text(x=.1*x_max, y=0.9*y_max, s='SF', fontsize=12, ha='center', va='center')
+
+    plt.legend(loc='center right')
+    # plt.xlim((-.025,.125))
+    plt.title(f'{nir_filter.upper()} {ylabel} to {xlabel} Comparison')
+    plt.savefig(f'{working_directory}/{savename}')
+    # plt.gca().invert_yaxis()
+    plt.show()
+    plt.close()
+
+def C_agn_scatter():
+    ### scatter the given xlabel vs ylabel & include highlighting of different visual classifications
+    ### give savename (include file extension (.png))
+    ### xsearch & ysearch are used for the table searching (if it's different than what you're labeling it as)
+    ### also highlight the agn regions (agn, composite, sf)
+
+    xlabel = 'AGN (%)'
+    ylabel = 'Concentration (C)'
+    xsearch = 'AGN(%)'
+    savename = f'{nir_filter}_AGN_C_statmorph.png'
+    ysearch = ''
+    xsearch=xlabel if xsearch=='' else xsearch
+    ysearch=ylabel if ysearch=='' else ysearch
+
+    ind = 0
+    for i in classes:
+        if(not i.empty):
+            plt.scatter(i[xsearch],stats_table[ind][ysearch],marker=symbols[ind],label=labels[ind])
+        ind+=1
+
+    plt.ylabel(ylabel)
+    plt.xlabel(xlabel)
+
+    # Highlight the agn regions
+    y_max = plt.gca().get_ylim()[1]
+    x_max = plt.gca().get_xlim()[1]
+    plt.ylim(1.5,y_max)
+
+    plt.axvspan(80, 100, color='lightgray', alpha=0.3)
+    plt.text(x=.90*x_max, y=.9*y_max, s='AGN', fontsize=12, ha='center', va='center')
+    plt.axvspan(20, 80, color='lightgray', alpha=0.3)
+    plt.text(x=.50*x_max, y=.95*y_max, s='Composite', fontsize=12, ha='center', va='center')
+    plt.axvspan(0, 20, color='lightgray', alpha=0.3)
+    plt.text(x=.1*x_max, y=0.9*y_max, s='SF', fontsize=12, ha='center', va='center')
+
+    plt.legend(loc='lower right')
+    # plt.xlim((-.025,.125))
+    plt.title(f'{nir_filter.upper()} {ylabel} to {xlabel} Comparison')
+    plt.savefig(f'{working_directory}/{savename}')
+    # plt.gca().invert_yaxis()
+    plt.show()
+    plt.close()
 
 
 # agn_frac_hist()
@@ -503,9 +608,50 @@ def A_S_scatter():
 # agn_frac_merger_hist()
 # agn_frac_merger_scatter()
 # compare_subsample()
-A_S_scatter()
+# A_S_scatter()
+# A_agn_scatter()
+# C_agn_scatter()
+
+
+def plot_AGN_statmorph(xlabel,ylabel,savename,xsearch='',ysearch=''):
+    ### scatter the given xlabel vs ylabel & include highlighting of different visual classifications
+    ### give savename (include file extension (.png))
+    ### xsearch & ysearch are used for the table searching (if it's different than what you're labeling it as)
+    ### also highlight the agn regions (agn, composite, sf)
+    xsearch=xlabel if xsearch=='' else xsearch
+    ysearch=ylabel if ysearch=='' else ysearch
+
+    ind = 0
+    for i in classes:
+        if(not i.empty):
+            plt.scatter(i[xsearch],stats_table[ind][ysearch],marker=symbols[ind],label=labels[ind])
+        ind+=1
+
+    plt.ylabel(ylabel)
+    plt.xlabel(xlabel)
+
+    # Highlight the agn regions
+    y_max = plt.gca().get_ylim()[1]
+    x_max = plt.gca().get_xlim()[1]
+
+    plt.axvspan(80, 100, color='lightgray', alpha=0.3)
+    plt.text(x=.90*x_max, y=.9*y_max, s='AGN', fontsize=12, ha='center', va='center')
+    plt.axvspan(20, 80, color='lightgray', alpha=0.3)
+    plt.text(x=.50*x_max, y=.9*y_max, s='Composite', fontsize=12, ha='center', va='center')
+    plt.axvspan(0, 20, color='lightgray', alpha=0.3)
+    plt.text(x=.1*x_max, y=0.9*y_max, s='SF', fontsize=12, ha='center', va='center')
+
+    plt.legend(loc='center right')
+    plt.title(f'{nir_filter.upper()} {ylabel} to {xlabel} Comparison')
+    plt.savefig(f'{working_directory}/{savename}')
+    plt.show()
+    plt.close()
+
+# plot_AGN_statmorph('AGN(%)','Gini',f'{nir_filter}AGN_gini_test.png')
 
 
 
 
-disclaimer()
+
+disclaimer(file)
+disclaimer(stat_measures)
