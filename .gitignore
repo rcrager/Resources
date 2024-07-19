@@ -1,4 +1,5 @@
 # ignore all .Identifier files? Why isn't it working then?
+*Zone.Identifier
 *.Identifier
 *.txt
 *.tsv
