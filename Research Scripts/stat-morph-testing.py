@@ -43,12 +43,14 @@ from astropy.utils.exceptions import AstropyWarning
 # sys.stdout = open(output_file, "w")   # <-comment out to see the output
 
 
-def run_in_jades(output_name='JADES_statmorph_measurements',use_grizli=False):
+def run_in_jades(output_name='Grizli-statmorph-measurements',use_grizli=False,error_bars=False):
     ###############################
     """
     Get statmorph fit for a jades source
     Input:  output_name: Filename to output the table of measurements to (saved filename is inclusive of filter name)
             use_grizli: Use Grizli Reductions or not, if false, defaults to using JADES reductions (less data available)
+            error_bars: Apply 100 Gaussians to the input image to statmorph to get 16th & 84th percentile from that for error bars
+                        on the following measurements: Asymmetry, Concentration, Gini, M20 -- others must be added manually
     """
     ###############################
     ## making a sample image that is going to be analyzed (with sersic 2d)
@@ -130,11 +132,17 @@ def run_in_jades(output_name='JADES_statmorph_measurements',use_grizli=False):
 
     gs_scis = np.zeros(len(nir_filters),dtype=object)
     gs_wcs_coords = np.zeros(len(nir_filters),dtype=object)
+    gs_exp_wcs_coords = np.zeros(len(nir_filters),dtype=object)
+    gs_wht_wcs = np.zeros(len(nir_filters),dtype=object)
     gs_whtmaps = np.zeros(len(nir_filters),dtype=object)
+    gs_expmaps = np.zeros(len(nir_filters),dtype=object)
 
     gn_scis = np.zeros(len(nir_filters),dtype=object)
     gn_wcs_coords = np.zeros(len(nir_filters),dtype=object)
+    gn_exp_wcs_coords = np.zeros(len(nir_filters),dtype=object)
+    gn_wht_wcs = np.zeros(len(nir_filters),dtype=object)
     gn_whtmaps = np.zeros(len(nir_filters),dtype=object)
+    gn_expmaps = np.zeros(len(nir_filters),dtype=object)
     
     gs_jades_seg = None
     full_jades_seg = None # for testing with grizli so that we use thE JADES SEGMAP
@@ -145,7 +153,14 @@ def run_in_jades(output_name='JADES_statmorph_measurements',use_grizli=False):
     for f in nir_filters:
         if(use_grizli):
             hdul = fits.open(f'/home/robbler/research/grizli-reductions/gds-grizli-v7.2-{f}-clear_drc_sci.fits')
-            gs_whtmaps[ind] = fits.open(f'/home/robbler/research/grizli-reductions/gds-grizli-v7.2-{f}-clear_drc_wht.fits')[0].data
+            gs_whtmap_general = fits.open(f'/home/robbler/research/grizli-reductions/gds-grizli-v7.2-{f}-clear_drc_wht.fits')
+            gs_whtmaps[ind] = gs_whtmap_general[0].data
+            gs_wht_wcs[ind] = WCS(gs_whtmap_general[0].header)
+            gs_expmap_general = fits.open(f'/home/robbler/research/grizli-reductions/gds-grizli-v7.2-{f}-clear_drc_exp.fits')
+            gs_expmaps[ind] = gs_expmap_general[0].data
+            gs_exp_wcs_coords[ind] = WCS(gs_expmap_general[0].header)
+            gs_expmap_general.close()
+            gs_whtmap_general.close()
             # gs_jades_seg = fits.getdata('/home/robbler/research/grizli-reductions/gds-grizli-v7.2-ir_seg.fits')
             gs_jades_seg = fits.getdata('/home/robbler/research/JADES_Fits_Maps/GS/hlsp_jades_jwst_nircam_goods-s-deep_segmentation_v2.0_drz.fits')
             full_jades_seg = fits.open('/home/robbler/research/JADES_Fits_Maps/GS/hlsp_jades_jwst_nircam_goods-s-deep_segmentation_v2.0_drz.fits')
@@ -178,6 +193,7 @@ def run_in_jades(output_name='JADES_statmorph_measurements',use_grizli=False):
         hdul.close()
 
         # catalog file
+        jades_gs_sizes = Table(tmp['SIZE'].data)
         gs_jades_catalog = Table(tmp['FLAG'].data) # extension #2 "FLAG" data
         tmp.close()
 
@@ -194,12 +210,20 @@ def run_in_jades(output_name='JADES_statmorph_measurements',use_grizli=False):
 
         if(use_grizli):
             hdul = fits.open(f'/home/robbler/research/grizli-reductions/gdn-grizli-v7.3-{f}-clear_drc_sci.fits')
-            gn_whtmaps[ind] = fits.open(f'/home/robbler/research/grizli-reductions/gdn-grizli-v7.3-{f}-clear_drc_wht.fits')[0].data
-            
+            gn_whtmap_general = fits.open(f'/home/robbler/research/grizli-reductions/gdn-grizli-v7.3-{f}-clear_drc_wht.fits')
+            gn_whtmaps[ind] = gn_whtmap_general[0].data
+            gn_wht_wcs[ind] = WCS(gn_whtmap_general[0].header)
+            gn_expmap_general = fits.open(f'/home/robbler/research/grizli-reductions/gdn-grizli-v7.3-{f}-clear_drc_wht.fits')
+            gn_expmaps[ind] = gn_expmap_general[0].data
+            gn_exp_wcs_coords[ind] = WCS(gn_expmap_general[0].header)
+
+            gn_whtmap_general.close()
+            gn_expmap_general.close()
             gn_jades_seg = fits.getdata('research/JADES_Fits_Maps/GN/hlsp_jades_jwst_nircam_goods-n_segmentation_v1.0_drz.fits')
             full_jades_seg = fits.open('research/JADES_Fits_Maps/GN/hlsp_jades_jwst_nircam_goods-n_segmentation_v1.0_drz.fits')
 
             gn_scis[ind] = hdul[0].data
+
             gn_wcs_coords[ind] = WCS(hdul[0].header)
             ###### for testing with grizli sources so that we use the JADES SEGMAP instead
             gn_jades_wcs = WCS(full_jades_seg[0].header)
@@ -224,6 +248,7 @@ def run_in_jades(output_name='JADES_statmorph_measurements',use_grizli=False):
 
         hdul.close()
         # catalog file
+        jades_gn_sizes = Table(tmp['SIZE'].data)
         gn_jades_catalog = Table(tmp['FLAG'].data) # extension #2 "FLAG" data
         tmp.close()
 
@@ -278,9 +303,65 @@ def run_in_jades(output_name='JADES_statmorph_measurements',use_grizli=False):
     full_output = sources
     # search_ids = ['GN_IRS33^e','GS_IRS12','GS_IRS34','GS_IRS37','GS_IRS62','GS_IRS9'] # trouble sources with grizli
     # search_ids = ['GS_IRS2'] # for testing with a high S/N source
-    # search_ids = ['GS_IRS62']
-    cols = ['Filter','Flag','Concentration (C)','Asymmetry (A)','Outer Asymmetry (Ao)','Smoothness (S)','Gini','M20','Gini-M20-Merger','Multimode (M)','Intensity (I)','Deviation (D)','S/N','Cutout Size (pix)']
+    # search_ids = ['GN_IRS2','GN_IRS21','GN_IRS22^d','GN_IRS25','GN_IRS33^e','GN_IRS4','GN_IRS55','GN_IRS56','GN_IRS60','GN_IRS61','GS_IRS20','GS_IRS37','GS_IRS50','GS_IRS60']
+    # search_ids = ['GS_IRS12','GN_IRS55','GS_IRS73']
+
+    ### search ids for high, mid, and low S/N sources for testing error bar distribution
+    # search_ids = ['GS_IRS12','GS_IRS45','GS_IRS71^e','GN_IRS14']
+
+
+
     
+    cols = ['Filter','Flag','Concentration (C)','Concentration (C) Error (16%)','Concentration (C) Error (84%)','Concentration (C) Error Full','Asymmetry (A)','Asymmetry (A) Error (16%)','Asymmetry (A) Error (84%)','Asymmetry (A) Error Full','Outer Asymmetry (Ao)','Smoothness (S)','Gini','Gini Error (16%)','Gini Error (84%)','Gini Error Full','M20','M20 Error (16%)','M20 Error (84%)','M20 Error Full','Gini-M20-Merger','Multimode (M)','Intensity (I)','Deviation (D)','S/N','Cutout Size (pix)']
+    ## size dictionary for the arcsec cutout for each
+    ## some sources are smaller some are larger etc
+    size_dict = {
+'GN_IRS10':8,
+'GN_IRS11':8,
+'GN_IRS14':6,
+'GN_IRS15':8,
+'GN_IRS17':6,
+'GN_IRS2':5,
+'GN_IRS21':6,
+'GN_IRS22^d':5,
+'GN_IRS24^e':5,
+'GN_IRS25':8,
+'GN_IRS27':8,
+'GN_IRS33^e':5,
+'GN_IRS36':8, # maybe 7 instead?
+'GN_IRS4':5,
+'GN_IRS43':5,
+'GN_IRS55':6,
+'GN_IRS56':7,
+'GN_IRS58^d':7,
+'GN_IRS59^d':7,
+'GN_IRS60':5,
+'GN_IRS61':5,
+'GN_IRS7^d':7,
+'GN_IRS8^d':8,
+'GS_IRS12':8,
+'GS_IRS14':8,
+'GS_IRS15':8,
+'GS_IRS2':5,
+'GS_IRS20':7,
+'GS_IRS21':5,
+'GS_IRS23':8,
+'GS_IRS25':5,
+'GS_IRS34':10,
+'GS_IRS37':8, #source not in grizli reductions
+'GS_IRS45':8,
+'GS_IRS50':7,
+'GS_IRS58^f':7, # trying 7, 8 works fine
+'GS_IRS60':7,
+'GS_IRS61':7,
+'GS_IRS62':6,
+'GS_IRS64^e':6,
+'GS_IRS70^e':5, #trying 5, 6 works fine
+'GS_IRS71^e':6,
+'GS_IRS72^e':5,
+'GS_IRS73':6,
+'GS_IRS9':7,
+}
     #### search for a specific filter to make sure it runs that filter right
 
     ###############################
@@ -294,35 +375,48 @@ def run_in_jades(output_name='JADES_statmorph_measurements',use_grizli=False):
         source_filter = source_row['Obs Filter'].iloc[0]
         index = nir_filters.index(source_filter)
 
-        if(id=='GS_IRS34' and use_grizli): 
-            size = 10 # change the size of the cutout for the biggest source
-        elif(use_grizli and (source_filter=='f150w' or source_filter=='f200w')):
-            ## set the size to 1/2 the usual because scaling is ~2x bigger for these filters
-            ## for GS_irs34 above, it doesn't matter bc its f277w
-            size = 6
-        elif(use_grizli):
-            size = 8
-            # cutout size in arcsec, might need to tweak depending on the source size
-            # this was a size of 6 for JADES sources (scaling ratio is ~.75)
-        else: # if we're using JADES data only
-            size = 6 # ~0.75 the grizli one (equates to 200x200) sized cutouts 
+        # if(id=='GS_IRS34' and use_grizli): 
+        #     size = 10 # change the size of the cutout for the biggest source
+        # elif(use_grizli and (source_filter=='f150w' or source_filter=='f200w')):
+        #     ## set the size to 1/2 the usual because scaling is ~2x bigger for these filters
+        #     ## for GS_irs34 above, it doesn't matter bc its f277w
+        #     size = 6
+        # elif(use_grizli):
+        #     size = 8
+        #     # cutout size in arcsec, might need to tweak depending on the source size
+        #     # this was a size of 6 for JADES sources (scaling ratio is ~.75)
+        # else: # if we're using JADES data only
+        #     size = 6 # ~0.75 the grizli one (equates to 200x200) sized cutouts 
         
+
+        ### use the size testing values from size_dict, individually selected sizes for different sized galaxies
+        size = size_dict[id]
+
+
         search_id = id
         jades_catalog,sci,jades_seg,wcs_coords,jades_wcs_coords,whtmap = (None for i in range(6))
         if(id.startswith('GN')):
             jades_catalog = gn_jades_catalog
+            jades_sizes = jades_gn_sizes
             sci = gn_scis[index]
             jades_seg = gn_jades_seg
             wcs_coords = gn_wcs_coords[index]
+            exp_wcs_coord = gn_exp_wcs_coords[index]
+            wht_wcs = gn_wht_wcs[index]
             jades_wcs_coords = gn_jades_wcs
             whtmap = gn_whtmaps[index]
+            expmap = gn_expmaps[index]
         if(id.startswith('GS')):
             jades_catalog = gs_jades_catalog
+            jades_sizes = jades_gs_sizes
             sci = gs_scis[index]
             jades_seg = gs_jades_seg
             wcs_coords = gs_wcs_coords[index]
+            exp_wcs_coord = gs_exp_wcs_coords[index]
+            wht_wcs = gs_wht_wcs[index]
             jades_wcs_coords = gs_jades_wcs
             whtmap = gs_whtmaps[index]
+            expmap = gs_expmaps[index]
 
         jades_id_raw = data_source['JADES ID']
         jades_id = 0
@@ -331,10 +425,15 @@ def run_in_jades(output_name='JADES_statmorph_measurements',use_grizli=False):
         else:
             jades_id = int(jades_id_raw)
 
-        source = jades_catalog[jades_catalog['ID']==jades_id] # make sure jades_id is an integer, otherwise it just returns the first item NOT AN ERROR??
+        source = jades_catalog[jades_catalog['ID']==jades_id]
+        # source_size = jades_sizes[jades_sizes['ID']==jades_id]
         position = SkyCoord(source['RA'],source['DEC'],unit='deg')
-
-
+        # ### set the size to something comparable to the segmap size?
+        
+        # seg_img = SegmentationImage(Cutout2D(jades_seg,position,1.5*10*units.arcsec,wcs=jades_wcs_coords,copy=True).data)
+        # print(seg_img.get_area(jades_id)/5000)
+        # size = int(seg_img.get_area(jades_id)/5000)
+        # # exit()
         ###################
         # try to get the cutout, print error and continue if it fails #
         # usually fails if the wcs coordinates aren't set right
@@ -344,9 +443,19 @@ def run_in_jades(output_name='JADES_statmorph_measurements',use_grizli=False):
             wht=None
             # full_exp_cutout = None
             if(use_grizli):
-                wht = Cutout2D(whtmap,position,size*units.arcsec,wcs=wcs_coords,copy=True).data
-                #### testing with different size to use the jades segmap instead so we can get accurate measurement for S/N
+                wht = Cutout2D(whtmap,position,size*units.arcsec,wcs=wht_wcs,copy=True).data
+                ### different scaling for GS exp map
+                ### but this visually looks off when I plot it, like it looks too big of a region
+                ### the only scale in the header is the 'sample rate'=4 so maybe need to just resize the image
+                ### maybe use opencv and/or skikit image to resize it with interpolation?
+                ### https://www.quora.com/How-do-I-resize-interpolate-a-numpy-array-with-floating-numbers
+                # if(id.startswith('GS')):
+                    # exp = Cutout2D(expmap,position,size*4*units.arcsec,wcs=exp_wcs_coord,copy=True).data
+                # else:
+                exp = Cutout2D(expmap,position,size*units.arcsec,wcs=exp_wcs_coord,copy=True).data
+
                 if(source_filter=='f150w' or source_filter=='f200w'):
+                    # different scaling for segmentation map on 150 & 200
                     seg = Cutout2D(jades_seg,position,1.5*size*units.arcsec,wcs=jades_wcs_coords,copy=True).data
                 else:
                     seg = Cutout2D(jades_seg,position,0.75*size*units.arcsec,wcs=jades_wcs_coords,copy=True).data
@@ -362,12 +471,21 @@ def run_in_jades(output_name='JADES_statmorph_measurements',use_grizli=False):
             # plt.show()
             # plt.imshow(img)
             # plt.show()
+            # plt.imshow(wht)
+            # plt.show()
+            # exit()
         except:
             print(f'[!!!] ERROR with IMG for {search_id}')
             continue
 
 
 ############ TESTING SNR #################################
+
+
+
+
+        #### testing with the masking feature...
+
         # sn_testing = img/(1/full_exp_cutout)
 
         ## testing with something of a similar size to the gini segmap
@@ -386,13 +504,33 @@ def run_in_jades(output_name='JADES_statmorph_measurements',use_grizli=False):
 
         # gini_exp = Cutout2D(full_exp_img,position,sn_size,wcs=wcs_coords,copy=True).data
         # new_sn = gini_cut/(1/gini_exp)
-        # plt.imshow(new_sn,origin='lower')
+        # plt.imshow(gini_cut,origin='lower')
         # plt.colorbar()
         # plt.show()
+        # plt.imshow(gini_wht,origin='lower')
+        # plt.colorbar()
+        # plt.show()
+        # exit()
 
-        # wht_sn = gini_cut/(1/gini_wht)
 
+        if(0. in img or 0. in wht): ### checking for 0 values in img, if any change them to np.nan (seems to be issue only with grizli reductions)
+            ### something about masking the effects of stars, but they're not stars so its about it being automated??
+            print('---- errrrrrrr 0 in img or wht for source -----')
+            info = source_row[['ID','Obs Filter']]
+            print(f'{info}')
+
+            img[np.where(img==0)] = np.nan
+            wht[np.where(wht==0)] = np.nan
+
+
+        # continue
+        # wht_sn = gini_cut/np.sqrt(1/gini_wht)
         # plt.imshow(wht_sn,origin='lower')
+        # plt.colorbar()
+        # plt.show()
+        # exit()
+
+        # plt.imshow(img/(1/wht),origin='lower')
         # plt.colorbar()
         # plt.show()
         # exit()
@@ -489,26 +627,297 @@ def run_in_jades(output_name='JADES_statmorph_measurements',use_grizli=False):
         ## the value of gain=source_gain might not be right, need to check with Alex or Sam to see if that's what I should be doing here...
         print(f'----------------')
         morph = None
-        if(use_grizli):
-            # morph = statmorph.SourceMorphology(img,seg_img,jades_id,weightmap=(1/full_exp_cutout),skybox_size=32,verbose=True) # weight map some auto generated by SExtractor will give it as 1/RMS
-            morph = statmorph.SourceMorphology(img,seg_img,jades_id,weightmap=(1/wht),skybox_size=32,verbose=True) # weight map some auto generated by SExtractor will give it as 1/RMS
+
+        
+        ###############################################################################
+        ################# testing with Gaussian Noise for error bars ##################
+        # root_morph = statmorph.SourceMorphology(img,seg_img,jades_id,weightmap=np.sqrt(1/wht),skybox_size=32,verbose=True)
+        # fig = make_figure(root_morph)
+        # plt.show()
+        # plt.close()
+        # # snp = 100.0 # seems to work the best, but not sure what it does necessarily
+        # snp = root_morph.sn_per_pixel
+        # sky_sigma = 1.0 / snp
+        # morphs = np.zeros(100,dtype=object)
+        # for i in range(100):
+        #     img_noise = img+sky_sigma * np.random.standard_normal(size=(img.shape[0],img.shape[1]))
+        #     morphs[i] = statmorph.SourceMorphology(img_noise,seg_img,jades_id,weightmap=np.sqrt(1/wht),skybox_size=32,verbose=True)
+        #     # err_ind+=1
+
+        # #### getting error bars for concentration # just testing with y here
+        # # root_asym = np.median(asym_err)
+        # root_asym = root_morph.asymmetry
+        # # print(root_asym)
+        # asym_err = [i.asymmetry for i in morphs]
+        # root_asym = np.median(asym_err)
+        # lower_err = np.abs(root_asym-np.percentile(asym_err,16))
+        # upper_err = np.abs(root_asym-np.percentile(asym_err,84))
+        # print(f'{root_asym=}+{upper_err} & -{lower_err}')
+        # plt.plot(50,root_asym,'.')
+        # plt.errorbar(50, root_asym, yerr=np.array([[lower_err ,upper_err]]).T,fmt='.')
+        # plt.title('asymmetry')
+        # plt.ylim([0,0.8])
+        # plt.xlim([0,100])
+        # plt.show()
+
+        # #### trying to get values from morphs alone
+        # concs = [i.concentration for i in morphs]
+        # root_conc = root_morph.concentration
+        # root_conc = np.median(concs)
+        # lower_conc_err = np.abs(root_conc-np.percentile(concs,16))
+        # upper_conc_err = np.abs(root_conc-np.percentile(concs,84))
+        # print(f'{root_conc=}+{upper_conc_err} & -{lower_conc_err}')
+        # plt.plot(50,root_conc,'.')
+        # plt.errorbar(50, root_conc, yerr=np.array([[lower_conc_err ,upper_conc_err]]).T,fmt='.')
+        # plt.title('concentration')
+        # plt.ylim([2,4.5])
+        # plt.xlim([0,100])
+        # plt.show()
+
+
+        #### with gini & m20?
+        # gini_err = [i.gini for i in morphs]
+        # root_gini = root_morph.gini
+        # root_gini = np.median(gini_err)
+        # lower_gini_err = np.abs(root_gini-np.percentile(gini_err,16))
+        # upper_gini_err = np.abs(root_gini-np.percentile(gini_err,84))
+        # print(f'{root_gini=}+{upper_gini_err} & -{lower_gini_err}')
+        # plt.plot(50,root_gini,'.')
+        # plt.errorbar(50, root_gini, yerr=np.array([[lower_gini_err ,upper_gini_err]]).T,fmt='.')
+        # plt.title('gini')
+        # plt.ylim([.3,.8])
+        # plt.xlim([0,100])
+        # plt.show()
+        
+        # exit()
+
+
+        ###############################################################################
+
+
+        if(error_bars):
+            morphs = np.zeros(100,dtype=object)
+            ### try to resize the exp cutout
+            from scipy.ndimage import zoom 
+            # Resize the array using zoom() 
+            new_size = wht.shape
+            new_exp = zoom(exp, (new_size[0] / exp.shape[0], new_size[1] / exp.shape[1]), order=0) 
+            exp=new_exp
+            
+            # plt.imshow(exp)
+            # plt.show()
+            wht_with_poisson = np.where(wht.data==np.nan,0.,np.sqrt(1/wht+abs(img)/exp))
+            # plt.imshow(np.sqrt(1/wht))
+            # plt.show()
+            # plt.imshow(wht_with_poisson)
+            # plt.show()
+            # exit()
+
+            if(use_grizli):
+                morph = statmorph.SourceMorphology(img,seg_img,jades_id,weightmap=wht_with_poisson,skybox_size=32,verbose=True)
+                # morph = statmorph.SourceMorphology(img,seg_img,jades_id,weightmap=np.sqrt(1/wht),skybox_size=32,verbose=True)
+            else:
+                morph = statmorph.SourceMorphology(img,seg_img,jades_id,gain=source_gain,skybox_size=32,verbose=True) # maybe cutout_extent=1?
+
+
+            ### trying with the error map instead of just the snp
+            # err_map = np.sqrt(1/wht)
+
+            # snp = morph.sn_per_pixel
+            # ### doing the scaling of the Guassian this way bc statmorph tutorial says that's how to apply bg noise to image: https://statmorph.readthedocs.io/en/latest/notebooks/tutorial.html
+            # sky_sigma = 1.0 / snp # scaling of the gaussian distribution, it should ideally be based on the noise sigma of the image I think?
+
+            for i in range(100): # size=(img.shape[0],img.shape[1])
+
+                # img_noise = img+np.random.normal(loc=0,scale=sky_sigma,size=(img.shape[0],img.shape[1]))
+                
+                
+                ### adding error to the image
+                ## usually we want to scale the gaussian based on 1/sn
+                err = wht ## it's actually the error map, but I called it weight to make it make sense when passing into statmorph
+                # err = np.sqrt(1/wht_with_poisson)
+                # err = 1/wht_with_poisson**2
+                # err = wht_with_poisson
+                # plt.imshow(err)
+                # plt.show()
+                # plt.imshow(wht)
+                # plt.show()
+                # err = np.where(wht==0,0.,np.sqrt(1./wht))
+                # err = np.sqrt(1/wht)
+                err = np.sqrt(1/wht)
+                # err = 1/5 # this applies visual noise quite well but how do we convert the weightmap (values ~5000) to 0.2
+                # print(np.mean(wht))
+                randarr=np.random.standard_normal(img.shape)
+                img_noise=img+(randarr*err)
+
+                # snp = 100.0
+                # sky_sigma = 1/snp
+                # sky_sigma = np.sqrt(1/wht)
+                # img_noise_2 = img+ (sky_sigma * np.random.standard_normal(size=img.shape))
+
+                # plt.imshow(img, cmap='gray', origin='lower',norm=simple_norm(img, stretch='log', log_a=10000))
+                # plt.imshow(img, cmap='gray', origin='lower')
+                # plt.show()
+                # # plt.imshow(img_noise, cmap='gray', origin='lower',norm=simple_norm(img_noise, stretch='log', log_a=10000))
+                # plt.imshow(img_noise, cmap='gray', origin='lower')
+                # plt.show()
+
+
+                # # print(np.mean(img_noise_2))
+                # print(np.mean(img_noise))
+                # print(np.mean(img))
+                # exit()
+
+                # # err=np.where(wht.data==0,0.,np.sqrt(1./wht.data))
+                # # randarr=np.random.standard_normal(sci.shape)
+                # # sci+=(randarr*err)
+
+                # print(np.mean(img))
+                # print(np.mean(img_noise))
+                # plt.imshow(img)
+                # plt.show()
+
+                # img_noise = img+np.random.normal(loc=0,scale=err_map,size=(img.shape[0],img.shape[1]))
+                # img_noise = img+np.random.randn()*err_map*shape_somehow
+
+                
+                if(use_grizli):
+                    morphs[i] = statmorph.SourceMorphology(img_noise,seg_img,jades_id,weightmap=wht_with_poisson,skybox_size=32,verbose=True)
+                    while(morphs[i].concentration==-99.0 or morphs[i].asymmetry==-99.0 or morphs[i].gini==-99.0 or morphs[i].m20==-99.0):
+                    # while(morphs[i].flag>=2):
+                        print(f'[!!!] Perturbation #{i} gave -99.0 for something. Rerunning with new noise...')
+                        ## rerun it with new noise until it gets non error values
+                        randarr=np.random.standard_normal(img.shape)
+                        img_noise=img+(randarr*err)
+                        morphs[i] = statmorph.SourceMorphology(img_noise,seg_img,jades_id,weightmap=wht_with_poisson,skybox_size=32,verbose=True)
+
+
+                else:
+                    morphs[i] = statmorph.SourceMorphology(img_noise,seg_img,jades_id,gain=source_gain,skybox_size=32,verbose=True)
+            
+            # morph = statmorph.SourceMorphology(img,seg_img,jades_id,weightmap=np.sqrt(1/full_exp_cutout),skybox_size=32,verbose=True) # weight map some auto generated by SExtractor will give it as 1/RMS
+            # morph = statmorph.SourceMorphology(img,seg_img,jades_id,weightmap=np.sqrt(1/wht),skybox_size=32,verbose=True) # weight map some auto generated by SExtractor will give it as 1/RMS
+            # morph = statmorph.SourceMorphology(img,seg_img,jades_id,weightmap=np.sqrt(1/wht),skybox_size=32,verbose=True) # weight map some auto generated by SExtractor will give it as 1/RMS
         else:
-            morph = statmorph.SourceMorphology(img,seg_img,jades_id,gain=source_gain,skybox_size=32,verbose=True) # maybe cutout_extent=1?
+            if(use_grizli):
+                ## trying Sam's solution to add Poisson noise to the weightmap to see how it differs from without Poisson noise
+                ## Poisson noise is removed only from the weightmap, not from the science image directly
+                
+                # print(gs_expmaps[0].shape)
+                # print(gs_whtmaps[0].shape)
+                # print(gs_expmaps[1].shape)
+                # print(gs_whtmaps[1].shape)
+                # print(gs_expmaps[2].shape)
+                # print(gs_whtmaps[2].shape)
+                # print(gs_expmaps[3].shape)
+                # print(gs_whtmaps[3].shape)
+                # print(gs_expmaps[4].shape)
+                # print(gs_whtmaps[4].shape)
+
+                ### try to resize the exp cutout
+                from scipy.ndimage import zoom 
+                
+                # # Resize the array using zoom() 
+                new_size = wht.shape
+                new_exp = zoom(exp, (new_size[0] / exp.shape[0], new_size[1] / exp.shape[1]), order=0) 
+                exp=new_exp
+                
+                # plt.imshow(img)
+                # plt.show()
+                # plt.imshow(wht,origin='lower')
+                # plt.show()
+                # plt.imshow(exp,origin='lower')
+                # plt.show()
+                # plt.imshow(new_exp,origin='lower')
+                # plt.show()
+                
+                ### instead of the line below, run the perturbations without poisson noise, just the wht map
+                wht_with_poisson = np.where(wht.data==np.nan,0.,np.sqrt(1/wht+abs(img)/exp.data))
+                
+                ### Getting values with Poisson noise in the weightmap
+                morph = statmorph.SourceMorphology(img,seg_img,jades_id,weightmap=wht_with_poisson,skybox_size=32,verbose=True)
+
+                ### getting initial values for comparison
+                # morph = statmorph.SourceMorphology(img,seg_img,jades_id,weightmap=np.sqrt(1/wht),skybox_size=32,verbose=True)
+            else:
+                morph = statmorph.SourceMorphology(img,seg_img,jades_id,gain=source_gain,skybox_size=32,verbose=True) # maybe cutout_extent=1?
         
         print(f'[---] Searching for Kirk ID: {search_id}')
         print(f'[---] Searching for JADES ID: {jades_id}')
         print(f'[---] Found JADES ID: {source["ID"][0]}')
         print(f'[>>>] Cutout size being inputted: {img.shape}')
         print(f'Source location: {position}')
-        
+
+        ### Get the error bar values (16th & 84th) for C, A, Gini, M20
+        ### if no error bars we want the errors to be 0 for all ^^
+        c_err_16,c_err_84,a_err_16,a_err_84,gini_err_16,gini_err_84,m20_err_16,m20_err_84 = [0 for i in range(8)]
+
+        if(error_bars):
+            ## morphs[i] should be set so we can get individual values
+
+            ### concentration
+            c_err = [i.concentration for i in morphs]
+            # c_err = np.array([1,2,3,4,5,6,7,8,9])
+
+            ### ensuring they're gaussian distributed
+            ### so we just save all the concentration values too
+            # print(f'Concentration for first source = {c_err}')
+            root_conc = np.median(c_err)
+            c_err_16 = np.abs(root_conc-np.percentile(c_err,16))
+            c_err_84 = np.abs(root_conc-np.percentile(c_err,84))
+
+            ### asymmetry
+            a_err = [i.asymmetry for i in morphs]
+            # a_err = np.array([1,2,3,4,5,6,7,8,9])
+            # print(f'Asymmetry for first source = {a_err}')
+            root_asym = np.median(a_err)
+            a_err_16 = np.abs(root_asym-np.percentile(a_err,16))
+            a_err_84 = np.abs(root_asym-np.percentile(a_err,84))
+
+            ### gini
+            g_err = [i.gini for i in morphs]
+            # g_err = np.array([1,2,3,4,5,6,7,8,9])
+            # print(f'Gini for first source = {g_err}')
+            root_gini = np.median(g_err)
+            gini_err_16 = np.abs(root_gini-np.percentile(g_err,16))
+            gini_err_84 = np.abs(root_gini-np.percentile(g_err,84))
+
+            ### m20
+            m_err = [i.m20 for i in morphs]
+            # m_err = np.array([1,2,3,4,5,6,7,8,9])
+            # print(f'M20 for first source = {m_err}')
+            root_m20 = np.median(m_err)
+            m20_err_16 = np.abs(root_m20-np.percentile(m_err,16))
+            m20_err_84 = np.abs(root_m20-np.percentile(m_err,84))
+
+
+
+        #### change these to be the root values of the entire distribution, not just the un-noised morph
+        ########################
         row.append(source_filter)
         row.append(morph.flag)
-        row.append(morph.concentration)
-        row.append(morph.asymmetry)
+        # row.append(morph.concentration)
+        row.append(root_conc)
+        row.append(c_err_16)
+        row.append(c_err_84)
+        row.append(str(c_err))
+        # row.append(morph.asymmetry)
+        row.append(root_asym)
+        row.append(a_err_16)
+        row.append(a_err_84)
+        row.append(str(a_err))
         row.append(morph.outer_asymmetry)
         row.append(morph.smoothness)
-        row.append(morph.gini)
-        row.append(morph.m20)
+        # row.append(morph.gini)
+        row.append(root_gini)
+        row.append(gini_err_16)
+        row.append(gini_err_84)
+        row.append(str(g_err))
+        # row.append(morph.m20)
+        row.append(root_m20)
+        row.append(m20_err_16)
+        row.append(m20_err_84)
+        row.append(str(m_err))
         row.append(morph.gini_m20_merger)
         row.append(morph.multimode)
         row.append(morph.intensity)
@@ -519,45 +928,41 @@ def run_in_jades(output_name='JADES_statmorph_measurements',use_grizli=False):
         full_output.loc[full_output['ID']== search_id, cols] = row
 
         print(f'Flag: {morph.flag}')
-        print(f'concentration \t(C): {morph.concentration} ')
-        print(f'asymmetry (under-estimate) (A): {morph.asymmetry} ')
-        print(f'outer asymmetry\t (A0): {morph.outer_asymmetry}')
-        print(f'smoothness(depends on psf heavily) (S): {morph.smoothness} ')
-        print(f'Gini: {morph.gini}')
-        print(f'M20: {morph.m20}')
-        print(f'Gini-M20 merger stat: {morph.gini_m20_merger}')
-        print(f'Multimode (M): {morph.multimode}')
-        print(f'Intensity: {morph.intensity}')
-        print(f'Deviation: {morph.deviation}')
+        # print(f'concentration \t(C): {morph.concentration} ')
+        # print(f'concentration err\t {(c_err_16,c_err_84)}')
+        # print(f'asymmetry (under-estimate) (A): {morph.asymmetry} ')
+        # print(f'asymmetry err\t {(a_err_16,a_err_84)}')
+        # print(f'outer asymmetry\t (A0): {morph.outer_asymmetry}')
+        # print(f'smoothness(depends on psf heavily) (S): {morph.smoothness} ')
+        # print(f'Gini: {morph.gini}')
+        # print(f'gini err\t {(gini_err_16,gini_err_84)}')
+        # print(f'M20: {morph.m20}')
+        # print(f'm20 err\t {(m20_err_16,m20_err_84)}')
+        # print(f'Gini-M20 merger stat: {morph.gini_m20_merger}')
+        # print(f'Multimode (M): {morph.multimode}')
+        # print(f'Intensity: {morph.intensity}')
+        # print(f'Deviation: {morph.deviation}')
         print(f'S/N (per pixel): {morph.sn_per_pixel}')
         
-        fig = make_figure(morph)
+
+        # fig = make_figure(morph) # make a figure of the root morph
         savepath = (f'research/statmorph_output/{search_id}_{size}_{source_filter}')
         if(use_grizli):
             savepath = (f'research/statmorph_output/grizli/{search_id}_{size}_{source_filter}')
-        plt.savefig(savepath,dpi=100)
+        # plt.savefig(savepath,dpi=100)
         # plt.show()
-        plt.close()
+        # plt.close()
         # exit()
 
     full_output.to_csv(f'research/statmorph_output/grizli/{output_name}.tsv','\t',index=False)
     print('[!!!] Finished statmorph measurements -- outputing table...')
-    print(full_output)
+    print(full_output[['ID','AGN^a','z^b','Filter','Flag','Concentration (C)','Asymmetry (A)','Gini','M20','S/N','Cutout Size (pix)']])
     disclaimer()
     return
 
 ##################
-"""
-::: NEXT STEPS ::::
 
-Confirm this is working properly by looking at the values from other data(?)
-Confirm we're getting all the values we want from this (ensure that we don't want reff or n or other parametric values)
-Then run this for all sources in the sample
-and find a way to save all this to a pandas database or maybe a astropy table
-"""
-##################
-
-def test_in_ceers():
+def test_in_ceers(note=''):
     '''test it in the ceers survey to reference results with this paper: https://arxiv.org/pdf/2404.16686'''
     #catalog_filename = '/home/robbler/research/CEERS_statmorph_testing/ceers5_f200w_cat.ecsv'
     catalog_filename = '/home/robbler/research/CEERS_statmorph_testing/hlsp_candels_hst_wfc3_egs_multi_v1_mass-cat.fits'
@@ -686,7 +1091,7 @@ def test_in_ceers():
         ### ^^^^ maybe useful later for all nircam data gain map
         ### https://jwst-pipeline.readthedocs.io/en/latest/jwst/gain_scale/description.html
         print(f'Cutout size: {img.shape}')
-        morph_full = statmorph.source_morphology(img,deblended_segmap,gain=source_gain,psf=psf,cutout_extent=1.5,verbose=True) # maybe cutout_extent=1?
+        morph_full = statmorph.source_morphology(img,deblended_segmap,gain=source_gain,cutout_extent=1.5,verbose=True) # maybe cutout_extent=1?
         morph = morph_full[seg_id]
         
         ###### ^ so it's fitting multiple of them depending on which label in the segmentation map it is ^^^^^^
@@ -727,21 +1132,24 @@ def test_in_ceers():
         
         fig = make_figure(morph)
         # plt.show()
-        plt.savefig(f'/home/robbler/research/CEERS_statmorph_testing/statmorph_fits/{id}.png')
-        plt.close()
+        # plt.savefig(f'/home/robbler/research/CEERS_statmorph_testing/statmorph_fits/{id}.png')
+        # plt.close()
     statmorph_table = Table(rows=stat_rows, names=['id', 'position','flag','concentration (C)','asymmetry (A)','outer asymmetry (Ao)','deviation','smoothness (S)','gini','m20','gini/m20 merger','s/n ratio','cutout size'])
     table_output = statmorph_table.to_pandas()
-    table_output.to_csv("/home/robbler/research/CEERS_statmorph_testing/testing_new_CEERS_statmorph.csv", encoding='utf-8', index=False)
+    print(table_output)
+    table_output.to_csv(f"/home/robbler/research/CEERS_statmorph_testing/{note}-CEERS_statmorph.csv", encoding='utf-8', index=False)
 
 
 
-# test_in_ceers()
+# print('with inputting the psf -- no adjustments base sample test')
+# test_in_ceers(note='without-psf')
+# exit()
 
 # grizli_filters = ['f115w','f150w','f200w','f277w','f356w','f444w']
 # grizli_filters = ['f277w','f356w','f444w'] # testing with these bc others are giving errors?
 # grizli_filters = ['f356w']
 # jades_filters = ['f115w','f150w','f200w','f277w','f356w','f444w']
-run_in_jades(use_grizli=True,output_name='grizli-rest-filters')
+run_in_jades(use_grizli=True,error_bars=True,output_name='grizli-error-bar-measurements-full-testing-9-21')
 
 
 
