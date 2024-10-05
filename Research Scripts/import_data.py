@@ -19,6 +19,19 @@ def disclaimer():
     print(f"[!!!] Reference file ({details_filename}) was last updated at: {m_ti}")
 
 
+def read_errorbar_data(input=None):
+    ## input = ideally a pandas series from a dataframe  
+    # take in the 100 perturbations outputted to the CSV file
+    ## and convert it to a numpy array as floats
+    try:
+        new_err = input.str.strip('[]')
+        new_err = new_err.str.split(',').to_numpy()
+        err_new = np.array(new_err[0]).astype(float)
+        return err_new
+    except:
+        print('[!!!] From import_data.py/read_errorbar_data() -> give this the pandas series of the error bar data.')
+        exit()
+
 table = pd.read_csv(detailed_file,sep='\t')
 table.sort_values(by='ID',ascending=True,inplace=True)
 pd.set_option('display.precision', 10)
