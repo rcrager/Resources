@@ -8,4 +8,4 @@
 
 
 #### Watch the [output.mp4](output.mp4) video for the full ~12 Gyr simulation
-<video src="output.mp4" width="300"/>
+[output.webm](https://github.com/user-attachments/assets/f4c8e423-5a1f-481f-a0e9-ab93af202556)
