@@ -51,8 +51,8 @@ conselice_values = {
 
 
 ### set plot font sizes
-small_size = 11
-large_size = 15
+small_size = 16
+large_size = 18
 matplotlib.rc('font', size=large_size)
 matplotlib.rc('axes', titlesize=large_size)
 matplotlib.rc('legend',fontsize=small_size)
@@ -168,7 +168,7 @@ morph_types, labels = add_classifications(table)
 
 #### importing statmorph values here::
 ### import the statmorph measurements tsv files *********************************************************************************************************
-stat_measures = f"research/statmorph_output/grizli/grizli-error-bar-poisson-full-10-2.tsv"
+stat_measures = f"research/statmorph_output/grizli/12-23-statmorph-output.tsv"
 stats = pd.read_csv(stat_measures,sep='\t')
 disclaimer(stat_measures)
 stats.sort_values(by='ID',ascending=True,inplace=True)
@@ -181,12 +181,29 @@ combined.sort_values(by='ID',ascending=True,inplace=True)
 
 ### Remove all Flag>1 # some filters will have different results this way though, so maybe we need to manually clean them before input
 keep = combined.query('`Flag`<=1')
+
 # keep['Merger (flag threshold)'].map(dict(yes=1, no=0))
 # keep['Merger (flag threshold)'].replace(('yes', 'no'), (1, 0), inplace=True)
 combined = keep
 # print(combined['Merger (flag threshold)'])
 
+### discard the bimodal measurements
+def remove_bad_measurements():
+    ## put a nan on measurements that should be thrown out
+    bad_meas = f"research/statmorph_output/grizli/errorbar-trouble-sources.tsv"
+    bad_ones = pd.read_csv(bad_meas,sep='\t')
+    disclaimer(bad_meas)
+    print('Removed some measurements for the following sources (bc bimodal error distribution)...')
+    for id in bad_ones['id']:
+        # go to the measurement value column & set it =np.nan
+        # measurement = bad_ones[bad_ones['id']==id]['measurement']
+        # print(combined['Concentration (C)'])
+        combined.loc[combined['ID']==id,bad_ones[bad_ones['id']==id]['measurement']]=np.nan
+        # print('would have removed measurement, but not removing for AAS since no error bars (1/10/25)')
+        # print(combined[combined['ID']==id][bad_ones[bad_ones['id']==id]['measurement']])
+    print(f'{bad_ones[["id","measurement"]]}')
 
+remove_bad_measurements()
 
 ##### get the merger variants for each classification
 ##### for now we're including the 'maybe' flag, but in the future we should exclude it (or just exclude if from the sheet)
@@ -250,6 +267,7 @@ main_colors = {
 base_wv_rest = np.median(table['Rest WV (um)'])
 wv_rest_16 = np.abs(base_wv_rest-np.percentile(table['Rest WV (um)'],16))
 wv_rest_84 = np.abs(base_wv_rest-np.percentile(table['Rest WV (um)'],84))
+
 # base_wv_rest = table['Rest WV (um)'].mean()
 # err_wv_rest = table['Rest WV (um)'].std()
 
@@ -263,7 +281,7 @@ def rest_frame_plot():
     labels = ['f115w','f150w','f200w','f277w','f356w','f444w']
     c=0
 
-    plt.scatter(table['z'],table['Obs WV (um)']/(1+table['z']),marker='o')
+    plt.scatter(table['z'],filter_options[3]/(1+table['z']),marker='o')
     for i in filter_options:
     #    filter_rest[c] = i/(1+redshift)
        plt.plot(redshift,i/(1+redshift),label=labels[c])
@@ -280,17 +298,17 @@ def rest_frame_plot():
     # plt.axhline(base_wv_rest+err_wv_rest,c='gray',alpha=0.3)
 
     ## redshift bins (matching the 1.0 Rest Wv (um) line)
-    plt.axvspan(3.0,4.0,facecolor='brown',alpha=0.3) # f444w
-    plt.axvspan(2.4,3.0,facecolor='purple',alpha=0.3) # f356w
-    plt.axvspan(1.5,2.4,facecolor='red',alpha=0.3) # f277w (this ones kind of large and off)
-    plt.axvspan(0.75,1.5,facecolor='green',alpha=0.3) # f200w
-    plt.axvspan(0,0.75,facecolor='orange',alpha=0.3) # f150w
+    # plt.axvspan(3.0,4.0,facecolor='brown',alpha=0.3) # f444w
+    # plt.axvspan(2.4,3.0,facecolor='purple',alpha=0.3) # f356w
+    # plt.axvspan(0,4.0,facecolor='red',alpha=0.3) # f277w (this ones kind of large and off)
+    # plt.axvspan(0.75,1.5,facecolor='green',alpha=0.3) # f200w
+    # plt.axvspan(0,0.75,facecolor='orange',alpha=0.3) # f150w
     
-    plt.annotate('f444w',(3.5,4.4),horizontalalignment='center',verticalalignment='top')
-    plt.annotate('f356w',(2.65,4.4),horizontalalignment='center',verticalalignment='top')
-    plt.annotate('f277w',(2.0,4.4),horizontalalignment='center',verticalalignment='top')
-    plt.annotate('f200w',(1.0,4.4),horizontalalignment='center',verticalalignment='top')
-    plt.annotate('f150w',(.4,4.4),horizontalalignment='center',verticalalignment='top')
+    # plt.annotate('f444w',(3.5,4.4),horizontalalignment='center',verticalalignment='top')
+    # plt.annotate('f356w',(2.65,4.4),horizontalalignment='center',verticalalignment='top')
+    # plt.annotate('f277w',(2.0,4.4),horizontalalignment='center',verticalalignment='top')
+    # plt.annotate('f200w',(1.0,4.4),horizontalalignment='center',verticalalignment='top')
+    # plt.annotate('f150w',(.4,4.4),horizontalalignment='center',verticalalignment='top')
 
     plt.legend(loc='center right')
     plt.grid(True)
@@ -593,7 +611,7 @@ def agn_frac_z(): ##### need to update this one
 
 
 
-def agn_frac_merger_hist():
+def agn_frac_merger_hist(): ### update this is we still want to use it*** (7/15)
     #### make a histogram of the agn fraction of mergers (then add cutouts later)
     #### to show if there's a relation bewteen the visual classification and quantitative measurements (Gini/M20) (to be found later)
     histbins = 10
@@ -749,6 +767,166 @@ def compare_subsample():
 # plt.close()
 # exit()
 
+
+#### testing with the KS test to see if anything alerting?
+# from scipy.stats import kstest
+# data = combined[combined['AGN(%)']>=80]['Asymmetry (A)']
+# # data = combined[combined['AGN(%)']>=80]['Concentration (C)']
+# # data = combined[combined['AGN(%)']>=80]['Gini']
+# # data = combined[combined['AGN(%)']>=80]['M20']
+
+# # Perform the K-S test against the normal distribution
+# statistic, p_value = kstest(data, 'norm')
+
+# # Print the results
+# print(f"KS statistic: {statistic}")
+# print(f"P-value: {p_value}")
+# exit()
+###########################################################
+
+
+## showing k-correction evolution of single source
+def k_corr_evolution():
+    # read values from file
+    # df = pd.read_csv('/home/robbler/research/making_psf_edits/testing_k_corr.txt', delimiter=':')
+        
+    file = open('/home/robbler/research/making_psf_edits/testing_k_corr.txt','r')
+    data = file.read()
+    file.close()
+
+    # Parse the data
+    lines = data.strip().split('\n')
+    parsed_data = []
+    temp_dict = {}
+    for line in lines:
+        if line.startswith('Source:'):
+            if temp_dict:
+                parsed_data.append(temp_dict)
+                temp_dict = {}
+            temp_dict['Source'] = line.split(':')[1]
+        elif line.startswith('Filter:'):
+            temp_dict['Filter'] = line.split(':')[1].strip()
+        elif line.startswith('Asymmetry:'):
+            temp_dict['Asymmetry'] = float(line.split(':')[1].strip())
+        elif line.startswith('Gini:'):
+            temp_dict['Gini'] = float(line.split(':')[1].strip())
+
+    # Append the last entry
+    if temp_dict:
+        parsed_data.append(temp_dict)
+
+    # Create a DataFrame
+    df = pd.DataFrame(parsed_data)
+
+    # Display the DataFrame
+    print(df)
+
+    # Merge the data on the Source column
+    merged_df = df.groupby('Source').apply(lambda x: x[['Filter', 'Asymmetry', 'Gini']].to_dict(orient='list')).reset_index()
+    merged_df.columns = ['Source', 'Details']
+
+
+    agn_obs = {
+        'GN_IRS11':['23',2.776],
+        'GN_IRS17':['47',3.556],
+        'GN_IRS27':	['26',1.988],
+        'GS_IRS14':	['50',2.776],
+        'GS_IRS25':	['0',1.988],
+        'GS_IRS60':['40',2.776],
+        'GN_IRS2':	['0',1.988],
+        'GS_IRS62':	['0',1.501],
+        'GS_IRS9': ['80(psf-effects)',4.401]
+           }
+    # Display the merged DataFrame
+    # print(merged_df[['Source','Details']])
+    fig,ax = plt.subplots(2,1)
+    filter_options = [1.501,1.988,2.776,3.566,4.401]
+    for id in merged_df.iterrows():
+        source = id[1]['Source'].strip()
+        obs_filt = agn_obs[source][1]
+        agn = agn_obs[source][0]
+        xs = filter_options
+        y_a = id[1]['Details']['Asymmetry']
+        y_g = id[1]['Details']['Gini']
+        fig,ax = plt.subplots(2,1)
+        ax[0].plot(xs,y_a,'o-')
+        ax[0].set_ylabel('Asymmetry')
+        ax[0].axvline(obs_filt,linestyle='--')
+        ax[1].axvline(obs_filt,linestyle='--')
+        ax[1].plot(xs,y_g,'o-')
+        ax[1].set_ylabel('Gini')
+        plt.xlabel('Wavelength ($\mu m$)')
+        plt.suptitle(f'{source} (.{agn} agn) K-correction Idea')
+        plt.savefig(f'/home/robbler/research/making_psf_edits/{source}_k_corr_a_gini.png',dpi=200)
+        # plt.show()
+
+def conv_stat_vals():
+    sources = ['GN_IRS36(.93)','GN_IRS43(.84)','GS_IRS9(.80)','GN_IRS4 (.17)']
+    c_s = [[1.772148129,1.583310724,4.341623673,2.698351791],[1.772148129,1.583310724,4.341623673,2.698351791],[4.324636132,2.854352176,3.064040347,2.675849208],[4.324636132,2.854352176,3.064040347,2.675849208]]
+    a_s = [[0.075922317,0.937637575,0.064693479,0.211675086],[0.075922317,0.937637575,0.064693479,0.211675086],[0.151905164,0.066915952,0.040499877,0.275871043],[0.151905164,0.066915952,0.040499877,0.275871043]]
+    ginis = [[0.312732191,0.460723916,0.324699901,0.511568396],[0.312732191,0.460723916,0.324699901,0.511568396],[0.601423313,0.584647868,0.530283013,0.513032632],[0.601423313,0.584647868,0.530283013,0.513032632]]
+    m20s = [[-1.573060311,-1.469682853,-1.366981295,-1.695406395],[-1.573060311,-1.469682853,-1.366981295,-1.695406395],[-2.274841868,-1.702513933,-1.786607639,-1.637080716],[-2.274841868,-1.702513933,-1.786607639,-1.637080716]]
+
+    x_key = ['Conv & PSF','Conv no PSF','PSF no Conv','No PSF or Conv']
+    fig,ax = plt.subplots(2,2)
+    for i in range(len(sources)):
+        concs = [c_s[f][i] for f in range(4)]
+        ax[0,0].plot(x_key,concs,linestyle='-',marker='o',label=f'{sources[i]}')
+        ax[0,0].set_ylabel('Concentration')
+
+        asym = [a_s[f][i] for f in range(4)]
+        ax[1,0].plot(x_key,asym,linestyle='-',marker='o',label=f'{sources[i]}')
+        ax[1,0].set_ylabel('Asymmetry')
+
+        gini_vals = [ginis[f][i] for f in range(4)]
+        ax[1,1].plot(x_key,gini_vals,linestyle='-',marker='o',label=f'{sources[i]}')
+        ax[1,1].set_ylabel('Gini')
+
+        m20_vals = [m20s[f][i] for f in range(4)]
+        ax[0,1].plot(x_key,m20_vals,linestyle='-',marker='o',label=f'{sources[i]}')
+        ax[0,1].set_ylabel('M20')
+        # ax[0,0].scatter(c_s[0][i],a_s[0][i],label=f'{sources[i]}')
+        # ax[0,0].set_title('Convolution & PSF inputted')
+        # ax[0,0].set_xlabel('Concentration')
+        # ax[0,0].set_ylabel('Asymmetry')
+        # ax[1,0].set_xlabel('Concentration')
+        # ax[1,0].set_ylabel('Asymmetry')
+        # ax[1,1].set_xlabel('Concentration')
+        # ax[1,1].set_ylabel('Asymmetry')
+        # ax[0,1].set_xlabel('Concentration')
+        # ax[0,1].set_ylabel('Asymmetry')
+
+        # ax[1,0].scatter(c_s[1][i],a_s[1][i],label=f'{sources[i]}')
+        # ax[1,0].set_title('Convolution & without PSF input')
+
+        # ax[0,0].scatter(c_s[2][i],a_s[2][i],label=f'{sources[i]}')
+        # ax[0,0].set_xlabel('Convolution & PSF inputted')
+    plt.legend()
+    plt.show()
+
+# conv_stat_vals()
+# exit()
+
+## S/N histogram
+def s_n_hist():
+    bin_edges = [0,10,15,20,30,40,50,70,100,150,200,250] # Smaller bins for smaller values
+    plt.hist(combined['S/N'],bins=bin_edges,edgecolor='black')
+    med = np.median(combined['S/N'])
+    std = np.std(combined['S/N'])
+    plt.axvline(med,linestyle='--',c='red',label=f'$\\tilde{{S/N}}={med:.1f}$')
+    plt.xlim(0,50)
+    plt.xticks([0,5,10,15,20,25,30,35,40,45,50])
+    # plt.axvline(med+std,linestyle='--',c='red')
+    # plt.axvline(med-std,linestyle='--',c='red')
+    plt.title('S/N of Sources')
+    plt.xlabel('S/N')
+    plt.legend()
+    plt.show()
+
+# s_n_hist()
+# exit()
+
+##### Error bar plots #####
 def test_plot_error_bars():
     ### for GN_IRS10
     ### Gaussian noise applied scaled by 1/SN = 1/~50
@@ -934,57 +1112,118 @@ def error_hist_for_source(id='GS_IRS12'):
 # error_hist_for_source('GN_IRS17')
 # exit()
 
-def sn_on_error():
+def sn_on_error(type='combined'):
+    ### three types: 
+    # ---- separate (in four separate histograms)
+    # ---- combined (all in one histogram)
     # function for the s/n on the error of each measurement
     # should give us an idea of how much we could trust our measurements
-    fig, ax = plt.subplots(1, figsize=(10, 8))
 
-    # filtered_group = combined.groupby('Filter')
 
-    # for i in combined.iterrows():
-        ### for now it's just the histogram of a few sources, will eventually do the full thing but it'll take a while to run all them and save them
-        ### idk if I can save an np array to a table like that        
-        # if(i[0]=='f150w'):
-        #     bins=1 
-        # if(i[0]=='f200w'):
-        #     bins=1
-        # if(i[0]=='f277w'):
-        #     bins=8
-        # if(i[0]=='f356w'):
-        #     bins=1
-        # if(i[0]=='f444w'):
-        #     bins=1 
     bins = 20
     # print(i[1]['ID'])
     # exit()
     # ax[0,0].hist(conc-np.median(conc),5,alpha=0.5,label=i[1])
-    ax.hist(combined['Concentration (C)']/((combined['Concentration (C) Error (84%)']+combined['Concentration (C) Error (16%)'])/2),label='Concentration',bins=bins,histtype='step',linewidth=2)
-    # # # plt.xlim([-10,10])
-    ax.hist(combined['Asymmetry (A)']/((combined['Asymmetry (A) Error (84%)']+combined['Asymmetry (A) Error (16%)'])/2),label='Asymmetry',bins=bins,histtype='step',linewidth=2)
-    # ax[1,0].hist(asym-np.median(asym),5,alpha=0.5,label=combined)
-    ax.hist(combined['Gini']/((combined['Gini Error (84%)']+combined['Gini Error (16%)'])/2),label='Gini',bins=bins,histtype='step',linewidth=2)
-    # ax[1,1].hist(gini-np.median(gini),5,alpha=0.5,label=combined)
-    ax.hist(np.abs(combined['M20']/((combined['M20 Error (84%)']+combined['M20 Error (16%)'])/2)),label='M20',bins=bins,histtype='step',linewidth=2)
-    # m20 values are negative so need abs, others aren't
-    # ax[0,1].hist(m20-np.median(m20),5,alpha=0.5,label=i[1])
+    if(type=='separate'):
+        fig, ax = plt.subplots(2,2, figsize=(10, 8))
+        ax[0,0].hist(combined['Concentration (C)']/((combined['Concentration (C) Error (84%)']+combined['Concentration (C) Error (16%)'])/2),label='Concentration',bins=bins,histtype='step',linewidth=2)
+        ax[0,1].hist(combined['Asymmetry (A)']/((combined['Asymmetry (A) Error (84%)']+combined['Asymmetry (A) Error (16%)'])/2),label='Asymmetry',bins=bins,histtype='step',linewidth=2)
+        ax[1,0].hist(combined['Gini']/((combined['Gini Error (84%)']+combined['Gini Error (16%)'])/2),label='Gini',bins=bins,histtype='step',linewidth=2)
+        ax[1,1].hist(np.abs(combined['M20']/((combined['M20 Error (84%)']+combined['M20 Error (16%)'])/2)),label='M20',bins=bins,histtype='step',linewidth=2)
+        ax[0,0].set_xlabel('Concentration S/N')
+        ax[0,1].set_xlabel('Asymmetry S/N')
+        ax[1,0].set_xlabel('Gini S/N')
+        ax[1,1].set_xlabel('M20 S/N')
 
+        ax[0,0].set_xscale('log')
+        ax[0,1].set_xscale('log')
+        ax[1,0].set_xscale('log')
+        ax[1,1].set_xscale('log')
+    elif(type=='combined'):
+        fig, ax = plt.subplots(1, figsize=(10, 8))
+        ax.hist(combined['Concentration (C)']/((combined['Concentration (C) Error (84%)']+combined['Concentration (C) Error (16%)'])/2),label='Concentration',bins=bins,histtype='step',linewidth=2)
+        # # # plt.xlim([-10,10])
+        ax.hist(combined['Asymmetry (A)']/((combined['Asymmetry (A) Error (84%)']+combined['Asymmetry (A) Error (16%)'])/2),label='Asymmetry',bins=bins,histtype='step',linewidth=2)
+        # ax[1,0].hist(asym-np.median(asym),5,alpha=0.5,label=combined)
+        ax.hist(combined['Gini']/((combined['Gini Error (84%)']+combined['Gini Error (16%)'])/2),label='Gini',bins=bins,histtype='step',linewidth=2)
+        # ax[1,1].hist(gini-np.median(gini),5,alpha=0.5,label=combined)
+        ax.hist(np.abs(combined['M20']/((combined['M20 Error (84%)']+combined['M20 Error (16%)'])/2)),label='M20',bins=bins,histtype='step',linewidth=2)
+        # m20 values are negative so need abs, others aren't
+        # ax[0,1].hist(m20-np.median(m20),5,alpha=0.5,label=i[1])
+        ax.legend()
+        ax.set_xlabel('S/N of Measurement')
+        ax.set_xscale('log')
+    else:
+        ## type should = compare (Default state)
+        ## so do default state
+        print('[---] Type for SN_ON_ERROR() function not know, defaulting to "combined" state...')
+        sn_on_error()
 
     # ax[0,0].set_xlabel('Concentration S/N')
-    ax.legend()
+    # ax.legend()
     # ax[0,1].set_xlabel('Asymmetry S/N')
     # ax[1,0].set_xlabel('Gini S/N')
     # ax[1,1].set_xlabel('M20 S/N')
-    ax.set_xlabel('S/N of Measurement')
+    # ax.set_xlabel('S/N of Measurement')
     fig.suptitle('S/N of Error on Measurements')
-    ax.set_xscale('log')
-    # ax[0,0].set_xscale('log')
-    # ax[0,1].set_xscale('log')
-    # ax[1,0].set_xscale('log')
-    # ax[1,1].set_xscale('log')
+    # ax.set_xscale('log')
     plt.show()
 
 # sn_on_error()
-# exit() 
+# exit()
+# 
+#  
+def sn_on_error_compare(zoomed=False):
+    ## scatter plot to compare relative error for measurements (in 2x1 plot)
+    fig, ax = plt.subplots(1,2,figsize=(12,8))
+    conc_x = combined['Concentration (C)']/((combined['Concentration (C) Error (84%)']+combined['Concentration (C) Error (16%)'])/2)
+    asym_y = combined['Asymmetry (A)']/((combined['Asymmetry (A) Error (84%)']+combined['Asymmetry (A) Error (16%)'])/2)
+    ax[0].plot(conc_x,asym_y,'b.')
+    ax[0].set_xlabel('Concentration S/N')
+    ax[0].set_ylabel('Asymmetry S/N')
+
+    gini_x = combined['Gini']/((combined['Gini Error (84%)']+combined['Gini Error (16%)'])/2)
+    m20_y = np.abs(combined['M20']/((combined['M20 Error (84%)']+combined['M20 Error (16%)'])/2))
+    ax[1].plot(gini_x,m20_y,'b.')
+    ax[1].set_xlabel('Gini S/N')
+    ax[1].set_ylabel('M20 S/N')
+
+    # ax[0].set_xscale('log')
+    # ax[1].set_xscale('log')
+    # ax[0].set_yscale('log')
+    # ax[1].set_yscale('log')
+    title = 'S/N of Error on Measurements'
+    if(zoomed):
+        max = 250
+        ax[0].set_xlim(0,max)
+        # ax[1].set_xlim(0,2000)
+        # ax[1].set_xlim(0,max)
+        ax[0].set_ylim(0,max)
+        ax[1].set_ylim(0,max)
+        ax[0].set_aspect('equal')
+        # ax[1].set_aspect('equal')
+
+        ## add the minimum tracers 
+        # concentration, asymm
+        ax[0].hlines(np.min(asym_y),0,max,linestyle='-.',color='r',alpha=0.3)
+        ax[0].vlines(np.min(conc_x),0,max,linestyle='-.',color='r',alpha=0.3)
+        ax[0].annotate(f'{np.min(asym_y):.1f}',xy={0,np.min(asym_y)},xytext=(-25,np.min(asym_y)),fontsize=12,va='center')
+        ax[0].annotate(f'{np.min(conc_x):.1f}',xy={np.min(conc_x),0},xytext=(np.min(conc_x),2),fontsize=12,ha='center')
+
+        # gini, m20
+        ax[1].hlines(np.min(m20_y),0,2000,linestyle='-.',color='r',alpha=0.3)
+        ax[1].vlines(np.min(gini_x),0,max,linestyle='-.',color='r',alpha=0.3)
+        ax[1].annotate(f'{np.min(m20_y):.1f}',xy={0,np.min(m20_y)},xytext=(-25,np.min(m20_y)),fontsize=12,va='center')
+        ax[1].annotate(f'{np.min(gini_x):.1f}',xy={np.min(gini_x),0},xytext=(np.min(gini_x),2),fontsize=12,ha='center')
+        title = 'S/N of Error on Measurements (zoomed)'
+    fig.suptitle(f'{title}')
+    plt.tight_layout(pad=1)
+    plt.show()
+
+# sn_on_error_compare(zoomed=True)
+# exit()
+
+
 
 
 def source_z_compare():
@@ -1023,6 +1262,10 @@ comp_class = comp_dom.groupby('Main Class')
 sf_class = sf_dom.groupby('Main Class')
 
 combined_class = combined.groupby('Main Class')
+# print(combined_class.get_group('Disk')[['ID','Concentration (C)','M20','Gini','AGN(%)']])
+# print(combined_class.get_group('Irregular')[['ID','Concentration (C)','M20','Gini','AGN(%)']])
+# print(combined_class.get_group('Spheroid')[['ID','Concentration (C)','M20','Gini','AGN(%)']])
+# exit()
 
 def highlight_mergers(plot,x='AGN(%)',y='AGN(%)'):
     all_mergers = combined.query('`Merger (flag threshold)`=="yes"')
@@ -1036,7 +1279,7 @@ def highlight_clumps_and_arms(plot,x='AGN(%)',y='AGN(%)'):
     plot.scatter(all_clumps[x],all_clumps[y],marker=3,label='Clumps',color='brown')
     return plot
 
-def A_S_scatter():
+def A_S_scatter(): # not using as of 7/16 ***
     ### scatter the asymmetry vs smoothness (clumpiness) measurements
     xlabel = 'Smoothness (S)'
     ylabel = 'Asymmetry (A)'
@@ -1108,7 +1351,7 @@ def A_S_scatter():
 # A_S_scatter()
 # exit()
 
-def A_C_scatter():
+def A_C_scatter(): ###* not using as of 8/20 **
     ### scatter the asymmetry vs concentration (clumpiness) measurements
     xlabel = 'Concentration (C)'
     ylabel = 'Asymmetry (A)'
@@ -1185,6 +1428,207 @@ def A_C_scatter():
 # A_C_scatter()
 # exit()
 
+
+'''
+for Asymmetry standard error = 0.030654527834188688
+for Concentration standard error = 0.09318416087613562
+for Gini standard error = 0.01819791241163235
+for M20 standard error = 0.06365918339442633
+'''
+
+# old standard error vals
+standard_err_vals = {'Asymmetry (A)':0.030654527834188688,
+                     'Concentration (C)':0.09318416087613562,
+                     'Gini':0.01819791241163235,
+                     'M20':0.06365918339442633}
+
+## taken from messing-with-psf.py
+asym_err_vals = np.array([0.0,0.0,0.0007959019999999595,0.0,-0.04180115000000001,0.0,0.0,-0.010094659000000006,0.0,-0.036242992,-0.024676754999999995,0.045978778000000026,-0.134162969,0.03602204399999999,0.0,0.0,0.0,0.0,-0.05702032000000001,-0.022280037000000003,0.0,-0.0010266109999999967,0.0,0.0,0.0,-0.04002197299999999,0.0,-0.03643905399999997,0.0,0.0031646189999999796,0.0,0.0,0.0,0.0,0.0,0.0,-0.063339852,0.0,-0.033187839,-0.06682363200000002,-0.07554662300000001,-0.012827393999999992,0.015191227000000002])
+conc_err_vals = np.array([0.0,0.0,0.027574169000000204,0.0,0.11051997700000005,0.0,0.0,0.049465163000000256,0.0,0.004018027999999951,0.2278917090000001,0.039814759999999616,-0.11680277900000036,-0.11378974699999977,0.0,0.0,0.0,0.0,0.0019949949999999994,0.04489362099999994,0.0,-0.16274078000000003,0.0,0.0,0.0,-0.13341934600000016,0.0,0.09568246800000013,0.0,0.062111777000000146,0.0,0.0,0.0,0.0,0.0,0.0,0.20329700699999975,0.0,-0.06529853799999996,-0.22323508800000003,-0.15791481099999993,0.1787019970000001,0.2623501159999999])
+gini_err_vals = np.array([0.0,0.0,0.01952327499999995,0.0,-0.0018238389999999938,0.0,0.0,-0.0023421839999999694,0.0,-0.01723438399999999,0.007474804999999973,-0.03887671599999998,-0.02512950900000005,-0.04304711299999997,0.0,0.0,0.0,0.0,0.023876820999999993,-0.0033005289999999965,0.0,0.0023447930000000117,0.0,0.0,0.0,-0.006689643000000023,0.0,0.010933203000000002,0.0,-0.003909011999999934,0.0,0.0,0.0,0.0,0.0,0.0,0.04591201900000008,0.0,0.0024785849999999776,-0.006363677000000012,-0.06075000600000002,0.02822096399999996,0.04588838799999995])
+m20_err_vals = np.array([0.0,0.0,-0.08584868999999995,0.0,-0.23620932499999991,0.0,0.0,-0.13192586500000014,0.0,-0.016333382000000007,-0.09451803499999967,-0.11676924200000016,-0.013999436999999837,0.10628174099999987,0.0,0.0,0.0,0.0,-0.037035994000000017,-0.016739963000000024,0.0,0.09923172899999999,0.0,0.0,0.0,0.0755867939999999,0.0,-0.138279896,0.0,-0.008121830000000108,0.0,0.0,0.0,0.0,0.0,0.0,-0.1253663410000001,0.0,0.00395804100000019,-0.0007703980000000055,0.089619165,-0.10008580499999997,-0.06815098899999983])
+
+err_vals_aligned = {'Asymmetry (A)':asym_err_vals,
+                     'Concentration (C)':conc_err_vals,
+                     'Gini':gini_err_vals,
+                     'M20':m20_err_vals}
+
+def make_agn_plot():
+    vis_sym = {
+    'Disk': '*',
+    'Spheroid': 'o',
+    'Irregular': '^',
+    'Even Agreement': 's'
+    }
+    ### plot the c,a, and gini for each source by AGN fraction (on x axis)
+    cols = ['green','orange','blue']
+    names = ['SF','Composite','AGN']
+    fig, axs = plt.subplots(3,1)
+    fig.set_size_inches(10,10)
+    print(f'total sources inputted to agn plot: {len(combined)}')
+
+    def add_axis(ax_name,axis=0,lab=''):
+        plot_vals = np.zeros(len(combined))
+        err_vals = np.zeros((len(combined),2))
+        x_vals = np.zeros(len(combined))
+        plot_ind = 0
+        for ind,row in combined.iterrows():
+            if(row['AGN^a']>=80): c=2
+            if((row['AGN^a']<80)&(row['AGN^a']>=20)): c=1
+            if(row['AGN^a']<20): c=0
+
+
+            plot_vals[plot_ind] = row[ax_name]
+            x_vals[plot_ind] = row['AGN^a']
+
+            ## get visual symbol here
+            # print(row['Main Class'])
+            # s=0
+            # if(row['Main Class']=='Disk'):s=0
+            # elif(row['Main Class']=='Spheroid'):s=1
+            # elif(row['Main Class']=='Irregular'):s=2
+            # elif(row['Main Class']=='Even Agreement'):s=3
+
+
+            err_full_arr = np.zeros(100)
+            err_str_arr = row[f'{ax_name} Error Full'].split('[')[1].split(']')[0].split(',')
+            err_full_arr = np.array(err_str_arr)
+            err_full = err_full_arr.astype(float)
+
+
+            y_med = np.median(row[f'{ax_name}'])
+            y_err_16 = np.abs(y_med-np.percentile(err_full,16))
+            # print(y_err_16)
+            y_err_84 = np.abs(y_med-np.percentile(err_full,84))
+            # print(y_err_84)
+
+            ### old version was to do standard_err_vals[ax_name]**2+(y_err_84**2), etc
+            err_high = np.sqrt((standard_err_vals[ax_name]**2)+(y_err_84**2))
+            err_low = np.sqrt((standard_err_vals[ax_name]**2)+(y_err_16**2))
+
+            # err_high = np.sqrt(((err_vals_aligned[ax_name][ind])**2)+(y_err_84**2))
+            # err_low = np.sqrt(((err_vals_aligned[ax_name][ind])**2)+(y_err_16**2))
+            y_err = np.array(err_low,err_high)
+            err_vals[plot_ind] = y_err
+            axs[axis].scatter(row['AGN^a'],row[f'{ax_name}'],marker=vis_sym[row['Main Class']],color=cols[c],s=50,label=names[c],zorder=1)
+
+            axs[axis].errorbar(row['AGN^a'],row[f'{ax_name}'],yerr=y_err,marker='.',color=cols[c],alpha=0.5,zorder=0)
+            if(row['Merger (flag threshold)']=="yes"):
+                axs[axis].scatter(row['AGN^a'],row[f'{ax_name}'],marker='v',label='Mergers',color='black',zorder=2)
+                #  plot.scatter(all_mergers[x],all_mergers[y],marker=11,label='Mergers',color='black')
+            axs[axis].set_ylabel(lab)
+            axs[axis].set_xticks([])
+            # locs = axs[axis].get_yticks()  # Get the current locations and labels.
+            # axs[axis].set_yticks(locs,major=True,minor=True)  # Set label locations.
+            plot_ind+=1
+        trend_vals = np.zeros(3)
+        trend_err = np.zeros(3)
+        trend_x_vals = np.zeros(3)
+        ic=0
+        for i in [agn_dom,comp_dom,sf_dom]:
+            graph_mask = np.isfinite(i[ax_name])
+            # axs[axis].errorbar(x=(np.max(i['AGN(%)'][graph_mask])+np.min(i['AGN(%)'][graph_mask]))/2,y=np.median(i[ax_name][graph_mask]),yerr=np.std(i[ax_name][graph_mask]),c='gray',fmt='.',alpha=0.5)
+            trend_vals[ic] = np.median(i[ax_name][graph_mask])
+            trend_err[ic] = np.std(i[ax_name][graph_mask])
+            trend_x_vals[ic] = (np.max(i['AGN(%)'][graph_mask])+np.min(i['AGN(%)'][graph_mask]))/2
+            ic+=1
+        ## plot the trend line for each
+        # axs[axis].plot(trend_x_vals,trend_vals,c='red')
+        # axs[axis].fill_between(trend_x_vals,trend_vals-trend_err,trend_vals+trend_err,color='red',alpha=0.5)
+
+        # Calculating the coefficients of the best fit line 
+        # graph_mask = np.isfinite(i[ax_name])
+        # x_vals = combined['AGN(%)'][graph_mask]
+        # coefficients = np.polyfit(x_vals, combined[ax_name][graph_mask], 1) 
+        
+        # plot_vals = np.abs(plot_vals)
+        graph_mask = np.isfinite(plot_vals)
+        x_vals = x_vals[graph_mask]
+        plot_vals = plot_vals[graph_mask]
+        err_vals = err_vals[graph_mask]
+        arr1inds = x_vals.argsort()
+        x_vals_srt = x_vals[arr1inds[::-1]]
+        plot_vals_srt = plot_vals[arr1inds[::-1]]
+        err_vals_srt = err_vals[arr1inds[::-1]]
+        # coefficients, cov = np.polyfit(x_vals, plot_vals, 1,cov=True)
+        err_vals_new = np.zeros(len(err_vals_srt))
+        co = 0
+        for i in err_vals_srt:
+            err_vals_new[co] = np.mean(i)
+            co+=1
+        p, cov = np.polyfit(x_vals_srt, plot_vals_srt, 1, cov=True)
+        # plt.plot(x_vals, plot_vals)
+        slope = p[0]
+        intercept = p[1]
+        axs[axis].plot(x_vals_srt, np.polyval(p,x_vals_srt),color='black',linestyle='--')
+        err = np.sqrt(np.diag(cov))
+
+
+        slope_gaus = np.random.normal(slope,err[0],300)
+        y_int_gaus = np.random.normal(intercept,err[1],300)
+        
+
+
+        # y_fit_low = (slope-err[0])*x_vals_srt + intercept-err[1]
+        # y_fit_high = (slope+err[0])*x_vals_srt + intercept+err[1]
+        print(f'Slope for {ax_name} = {slope} +/- {err[0]} + interc({intercept}) +/- {err[1]}')
+        # axs[axis].fill_between(x_vals_srt,y_fit_low,y_fit_high,alpha=0.2,color='black')
+        counter = 0
+        for s in slope_gaus:
+            # axs[axis].fill_between(x_vals_srt,s*x_vals_srt+(y_int_gaus[counter]-err[1]),s*x_vals_srt+(y_int_gaus[counter]+err[1]),alpha=0.1,color='gray',zorder=0)
+            axs[axis].plot(x_vals_srt,s*x_vals_srt+(y_int_gaus[counter]),alpha=0.1,color='gray',zorder=0)
+            counter+=1
+        
+        # slope = coefficients[0] 
+        # intercept = coefficients[1] 
+        # Generating the best fit line 
+        # y_fit = slope * x_vals + intercept 
+        # y_err = [slope+e * x_vals+intercept for e in err]
+        # Plotting the data points and the best fit line 
+        # axs[axis].plot(x_vals, y_fit, color='red',linestyle='--')
+        # axs[axis].fill_between(x_vals,y_err[0],y_err[1],color='red',alpha=0.2)
+        
+        axs[axis].axvline(20,linestyle='--',c='lightgray',zorder=-1)
+        axs[axis].axvline(80,linestyle='--',c='lightgray',zorder=-1)
+
+
+
+    add_axis('Concentration (C)',axis=0,lab='C')
+    add_axis('Asymmetry (A)',axis=1,lab='A')
+    add_axis('Gini',axis=2,lab='Gini')
+
+    # from matplotlib.lines import Line2D
+    # point = Line2D([0], [0], label='Disk', marker='*', markersize=0,color='gray')
+    # handles, labels = plt.gca().get_legend_handles_labels()
+    # by_label = dict(zip(labels, handles))
+    # axs[-1].legend(by_label.values(), by_label.keys())
+    axs[-1].set_xticks(np.linspace(0,100,6))
+    axs[-1].set_xlabel('AGN (%)')
+
+    # axs[0].legend()
+    fig.tight_layout(w_pad=5,h_pad=1)
+    # plt.savefig('research/Analysis_graphs/CAS_vs_AGN/CA_Gini_AGN_w-o_error_only_lines.png',dpi=500)
+    plt.show()
+
+    
+    return
+
+make_agn_plot()
+exit()
+
+def testing():
+    plt.scatter(0,10,marker='*',s=40,label='Disk',c='gray')
+    plt.scatter(10,0,marker='o',s=40,label='Spheroid',c='gray')
+    plt.scatter(10,10,marker='^',s=40,label='Irregular',c='gray')
+    plt.scatter(20,10,marker='v',s=40,label='Merger',c='gray')
+    plt.plot([0,0,10,10],linestyle='-',label='Lotz+2008',c='gray')
+    plt.legend()
+    plt.show()
+
+# testing()
+# exit()
+
+
 def A_agn_scatter():
     ### scatter the given xlabel vs ylabel & include highlighting of different visual classifications
     ### give savename (include file extension (.png))
@@ -1228,7 +1672,10 @@ def A_agn_scatter():
         try:
             plt.scatter(combined_class.get_group(c)['AGN(%)'],combined_class.get_group(c)['Asymmetry (A)'],40,marker=main_colors[c][1],facecolor="none", 
                         edgecolor=main_colors[c][0],lw=1.5,label=(f'{c}'))
-            # plt.legend()
+            
+            # line for adding error bars (but they're basically invisible)
+            # plt.errorbar(combined_class.get_group(c)['AGN(%)'],combined_class.get_group(c)['Asymmetry (A)'],yerr=(combined_class.get_group(c)['Asymmetry (A) Error (16%)'],combined_class.get_group(c)['Asymmetry (A) Error (84%)']),fmt='.')
+            
         except:
             print(f'err with a_agn_scatter() for main_color: {c}')
             continue
@@ -1265,8 +1712,8 @@ def A_agn_scatter():
     plt.show()
     plt.close()
 
-A_agn_scatter()
-exit()
+# A_agn_scatter()
+# exit()
 
 def A_agn_histogram():
     ### histogram given xlabel vs ylabel & include highlighting of different visual classifications
@@ -1351,8 +1798,8 @@ def A_agn_histogram():
     plt.show()
     plt.close()
 
-A_agn_histogram()
-exit()
+# A_agn_histogram()
+# exit()
 
 def C_agn_scatter():
     ### scatter the given xlabel vs ylabel & include highlighting of different visual classifications
@@ -1400,7 +1847,8 @@ def C_agn_scatter():
 
     ### plot the avg & std of each section
     for i in [agn_dom,comp_dom,sf_dom]:
-        plt.errorbar(x=(np.max(i[xsearch])+np.min(i[xsearch]))/2,y=np.median(i[ysearch]),yerr=np.std(i[ysearch]),c='gray',fmt='.',alpha=0.5)
+        graph_mask = np.isfinite(i[ysearch])
+        plt.errorbar(x=(np.max(i[xsearch][graph_mask])+np.min(i[xsearch][graph_mask]))/2,y=np.median(i[ysearch][graph_mask]),yerr=np.std(i[ysearch][graph_mask]),c='gray',fmt='.',alpha=0.5)
 
     # plot the scattered values
     ind = 0
@@ -1410,9 +1858,14 @@ def C_agn_scatter():
         try:
             # y_err = np.array([combined_class.get_group(c)[f'{ysearch} Error (16%)'],combined_class.get_group(c)[f'{ysearch} Error (84%)']])
             # plt.errorbar(x=combined_class.get_group(c)[xsearch],y=combined_class.get_group(c)[ysearch],yerr=y_err,fmt=',')
-            plt.scatter(combined_class.get_group(c)[xsearch],combined_class.get_group(c)[ysearch],40,marker=main_colors[c][1],facecolor="none", 
+            
+            graph_mask = np.isfinite(combined_class.get_group(c)[ysearch])
+            plt.scatter(combined_class.get_group(c)[xsearch][graph_mask],combined_class.get_group(c)[ysearch][graph_mask],40,marker=main_colors[c][1],facecolor="none", 
                         edgecolor=main_colors[c][0],lw=1.5,label=(f'{c}'))
-            # plt.legend()
+            
+            ## for getting errorbars (but they're basically invisible anyways)
+            # plt.errorbar(combined_class.get_group(c)[xsearch][graph_mask],combined_class.get_group(c)[ysearch][graph_mask],yerr=(combined_class.get_group(c)[f'{ysearch} Error (16%)'][graph_mask],combined_class.get_group(c)[f'{ysearch} Error (84%)'][graph_mask]),fmt='.')
+
         except:
             print(f'err with c_agn_scatter() for main_color: {c}')
             continue
@@ -1448,8 +1901,7 @@ def C_agn_scatter():
 # C_agn_scatter()
 # exit()
 
-def S_agn_scatter():
-    ### not using as of 7/29 ------
+def S_agn_scatter(): ### not using as of 7/29 ------
 
     ### scatter the given xlabel vs ylabel & include highlighting of different visual classifications
     ### give savename (include file extension (.png))
@@ -1551,17 +2003,20 @@ def gini_agn_scatter():
 
     ## plot the avg & std of each section
     for i in [agn_dom,comp_dom,sf_dom]:
-        plt.errorbar(x=(np.max(i[xsearch])+np.min(i[xsearch]))/2,y=np.median(i[ysearch]),yerr=np.std(i[ysearch]),c='gray',fmt='.',alpha=0.5)
-
+        graph_mask = np.isfinite(i[ysearch])
+        plt.errorbar(x=(np.max(i[xsearch][graph_mask])+np.min(i[xsearch][graph_mask]))/2,y=np.median(i[ysearch][graph_mask]),yerr=np.std(i[ysearch][graph_mask]),c='gray',fmt='.',alpha=0.5)
 
     # plot the scattered values
     ind = 0
     # for g in [agn_class,comp_class,sf_class]:
     for c in main_colors:
         try:
-            plt.scatter(combined_class.get_group(c)[xsearch],combined_class.get_group(c)[ysearch],40,marker=main_colors[c][1],facecolor="none", 
+            graph_mask = np.isfinite(combined_class.get_group(c)[ysearch])
+            plt.scatter(combined_class.get_group(c)[xsearch][graph_mask],combined_class.get_group(c)[ysearch][graph_mask],40,marker=main_colors[c][1],facecolor="none", 
                         edgecolor=main_colors[c][0],lw=1.5,label=(f'{c}'))
-            # plt.legend()
+            
+            ## for getting errorbars
+            plt.errorbar(combined_class.get_group(c)[xsearch][graph_mask],combined_class.get_group(c)[ysearch][graph_mask],yerr=(combined_class.get_group(c)[f'{ysearch} Error (16%)'][graph_mask],combined_class.get_group(c)[f'{ysearch} Error (84%)'][graph_mask]),fmt='.')
         except:
             print(f'err with gini_agn_scatter() for main_color: {c}')
             continue
@@ -1630,7 +2085,8 @@ def gini_agn_histogram():
     lab = ['AGN','Composite','SF']
     color_agn = ['#1f77b4','#ff7f0e','#2ca02c']
     histbins = 7
-    bins=np.histogram(np.hstack((agn_dom[xsearch],comp_dom[xsearch],sf_dom[xsearch])), bins=histbins)[1] #get the bin edges
+    graph_masks = [np.isfinite(g[xsearch]) for g in [agn_dom,comp_dom,sf_dom]]
+    bins=np.histogram(np.hstack((agn_dom[xsearch][graph_masks[0]],comp_dom[xsearch][graph_masks[1]],sf_dom[xsearch][graph_masks[2]])), bins=histbins)[1] #get the bin edges
     # bins=[2,5,7]
     # plot the scattered values
     ind = 2
@@ -1644,9 +2100,10 @@ def gini_agn_histogram():
         if(ind==0):
             wdth=2
         
-        plt.hist(g[xsearch],bins=bins,label=lab[ind],color=color_agn[ind],fill=filling,histtype='step',linewidth=2)
+        graph_mask = np.isfinite(g[xsearch])
+        plt.hist(g[xsearch][graph_mask],bins=bins,label=lab[ind],color=color_agn[ind],fill=filling,histtype='step',linewidth=2)
             # plt.legend()
-        plt.axvline(np.median(g[xsearch]),color=color_agn[ind],linestyle='--',linewidth=2)
+        plt.axvline(np.median(g[xsearch][graph_mask]),color=color_agn[ind],linestyle='--',linewidth=2)
         # except:
         #     print(f'err with a_agn_scatter() for main_color: {c}')
         #     continue
@@ -1684,12 +2141,11 @@ def gini_agn_histogram():
     plt.show()
     plt.close()
 
-gini_agn_histogram()
-exit()
+# gini_agn_histogram()
+# exit()
 
 
-def blank_agn_plot():
-    # template for making the cutout plot of type and agn
+def blank_agn_plot(): # template for making the cutout plot of type and agn
     plt.xlabel('AGN (%)')
     # plt.ylabel('Classification',labelpad=30)
     plt.xlim([0,100])
@@ -1702,6 +2158,116 @@ def blank_agn_plot():
     plt.show()
 # blank_agn_plot()
 # exit()
+
+def gini_m20_scatter_new():
+    vis_sym = {
+    'Disk': '*',
+    'Spheroid': 'o',
+    'Irregular': '^',
+    'Even Agreement': 's'
+    }
+    ### plot the c,a, and gini for each source by AGN fraction (on x axis)
+    cols = ['green','orange','blue']
+    names = ['SF','Composite','AGN']
+    fig, axs = plt.subplots()
+    fig.set_size_inches(10,8)
+    print(f'total sources inputted to agn plot: {len(combined)}')
+
+    def add_axis(ax_name,xsearch='',axis=0,lab=''):
+        gen_err=False
+        for ind,row in combined.iterrows():
+            if(row['AGN^a']>=80): c=2
+            if((row['AGN^a']<80)&(row['AGN^a']>=20)): c=1
+            if(row['AGN^a']<20): c=0
+
+            ## get visual symbol here
+            # print(row['Main Class'])
+            # s=0
+            # if(row['Main Class']=='Disk'):s=0
+            # elif(row['Main Class']=='Spheroid'):s=1
+            # elif(row['Main Class']=='Irregular'):s=2
+            # elif(row['Main Class']=='Even Agreement'):s=3
+
+            def get_err(val):
+                err_full_arr = np.zeros(100)
+                err_str_arr = row[f'{val} Error Full'].split('[')[1].split(']')[0].split(',')
+                err_full_arr = np.array(err_str_arr)
+                err_full = err_full_arr.astype(float)
+
+
+                y_med = np.median(row[f'{val}'])
+                y_err_16 = np.abs(y_med-np.percentile(err_full,16))
+                # print(y_err_16)
+                y_err_84 = np.abs(y_med-np.percentile(err_full,84))
+                # print(y_err_84)
+                err_high = np.sqrt((standard_err_vals[ax_name]**2)+(y_err_84**2))
+                err_low = np.sqrt((standard_err_vals[ax_name]**2)+(y_err_16**2))
+                y_err = np.array(err_low,err_high)
+                return y_err
+            y_err = get_err(ax_name)
+            x_err = get_err(xsearch)
+            
+            axs.scatter(row[f'{xsearch}'],row[f'{ax_name}'],marker=vis_sym[row['Main Class']],color=cols[c],s=50,label=names[c],zorder=1)
+            if(not gen_err): # make general errorbar if none already
+                axs.errorbar(-1,0.7,xerr=x_err,yerr=y_err,fmt='-',color='black',zorder=0,capsize=6)
+                gen_err=True
+            if(row['Merger (flag threshold)']=="yes"):
+                axs.scatter(row[xsearch],row[f'{ax_name}'],marker='v',label='Mergers',color='gray',zorder=2)
+                #  plot.scatter(all_mergers[x],all_mergers[y],marker=11,label='Mergers',color='black')
+            axs.set_ylabel(lab)
+            # axs.set_xticks([])
+            # locs = axs[axis].get_yticks()  # Get the current locations and labels.
+            # axs[axis].set_yticks(locs,major=True,minor=True)  # Set label locations.
+        agn_pop = combined[combined['AGN(%)']>=80]
+        comp_pop = combined[(combined['AGN(%)']>=20)&(combined['AGN(%)']<80)]
+        sf_pop = combined[combined['AGN(%)']<20]
+        b=0
+        # for i in [agn_dom,comp_dom,sf_dom]:
+        for i in [sf_pop,comp_pop,agn_pop]:
+            xs = i[xsearch].dropna(how='any')
+            ys = i[ax_name].dropna(how='any')
+            axs.errorbar(x=np.median(xs),y=np.median(ys),xerr=np.std(xs),yerr=np.std(ys),c=cols[b],fmt='s',alpha=0.5)
+            # graph_mask = np.isfinite(i[ax_name])
+            # x_mask = np.isfinite(i[xsearch])
+            # print(i[ax_name][graph_mask])
+            # print(i[xsearch])
+            # axs.errorbar(x=np.mean(i[xsearch]),y=np.mean(i[ax_name]),xerr=np.std(i[xsearch]),yerr=np.std(i[ax_name]),c=cols[b],fmt='s',alpha=0.5)
+            b+=1
+
+        # print(np.mean(agn_pop[xsearch]))
+        # print(agn_pop['Gini'])
+
+        # axs.errorbar(x=np.median(i[xsearch][x_mask]),y=np.median(i[ax_name][graph_mask]),xerr=np.std(i[xsearch][graph_mask]),yerr=np.std(i[ax_name][graph_mask]),c=cols[b],fmt='s',alpha=0.5)
+
+
+
+    add_axis('Gini',xsearch='M20',lab='Gini')
+
+    ## show the Lotz et al. 2008 merger line
+    x = [0,-3.0]
+    y = [.33,.75]
+    plt.plot(x, y,color='darkgray',label='Lotz+2008')
+    plt.annotate('Merger',(-1.2,0.65),color='darkgray')
+
+    ## show E/S0/Sa & Sb/Sc/Ir separator line (Lotz et al. 2008)
+    x = [-1.7,-3.0]
+    y = [0.568,0.38]
+    plt.plot(x, y,color='darkgray')
+    plt.annotate('E/S0/Sa',(-2.5,0.55),color='darkgray')
+    plt.annotate('Sb/Sc/Ir',(-1.2,0.42),color='darkgray')
+
+    plt.xlabel('M20')
+    plt.tight_layout(pad=1)
+
+    plt.xlim([-0.8,-2.8])
+    plt.ylim([0.38,0.73])
+    plt.savefig('research/Analysis_graphs/gini_m20/gini_m20_no_legend.png',dpi=500)
+    plt.show()
+
+
+
+gini_m20_scatter_new()
+exit()
 
 def gini_m20_scatter():
     ### scatter the asymmetry vs smoothness (clumpiness) measurements
@@ -1718,7 +2284,7 @@ def gini_m20_scatter():
 
     
     lab = ['AGN','Composite','SF']
-    color_agn = ['#1f77b4','#ff7f0e','#2ca02c']
+    color_agn = ['blue','orange','green']
     
     
     ## show the Lotz et al. 2008 merger line
@@ -1733,14 +2299,16 @@ def gini_m20_scatter():
     plt.plot(x, y,color='darkgray')
     plt.annotate('E/S0/Sa',(-2.5,0.55),color='darkgray')
     plt.annotate('Sb/Sc/Ir',(-1.2,0.42),color='darkgray')
-    plt.scatter(sf_dom[xsearch],agn_dom[ysearch],label=lab[0],color=color_agn[0])
+    # plt.scatter(sf_dom[xsearch],agn_dom[ysearch],label=lab[0],color=color_agn[0])
     # plt.scatter(comp_dom[xsearch],comp_dom[ysearch],label=lab[1],color=color_agn[1])
     # plt.scatter(sf_dom[xsearch],sf_dom[ysearch],label=lab[2],color=color_agn[2])
 
     ### plot the avg & std of each section
     b=0
     for i in [agn_dom,comp_dom,sf_dom]:
-        plt.errorbar(x=(np.max(i[xsearch])+np.min(i[xsearch]))/2,y=np.median(i[ysearch]),xerr=np.std(i[xsearch]),yerr=np.std(i[ysearch]),c=color_agn[b],fmt='.',alpha=0.5)
+        graph_mask = (np.isfinite(i[ysearch])) & (np.isfinite(i[xsearch]))
+        # x_mask = np.isfinite(i[xsearch])
+        plt.errorbar(x=np.median(i[xsearch][graph_mask]),y=np.median(i[ysearch][graph_mask]),xerr=np.std(i[xsearch][graph_mask]),yerr=np.std(i[ysearch][graph_mask]),c=color_agn[b],fmt='.',alpha=0.5)
         b+=1
 
 
@@ -1748,8 +2316,13 @@ def gini_m20_scatter():
     for g in [agn_class,comp_class,sf_class]:
         for c in main_colors:
             try:
-                plt.scatter(g.get_group(c)[xsearch],g.get_group(c)[ysearch],40,marker=main_colors[c][1],facecolor="none", edgecolor=color_agn[b],lw=1.5,label=(f'{lab[b]}-{c}'))
-                # plt.legend()
+                graph_mask = (np.isfinite(g.get_group(c)[ysearch])) & (np.isfinite(g.get_group(c)[xsearch]))
+
+                plt.scatter(g.get_group(c)[xsearch][graph_mask],g.get_group(c)[ysearch][graph_mask],40,marker=main_colors[c][1], edgecolor=color_agn[b],lw=1.5,label=(f'{lab[b]}-{c}'))
+
+                ## for getting errorbars
+                # plt.errorbar(g.get_group(c)[xsearch][graph_mask],g.get_group(c)[ysearch][graph_mask],xerr=(g.get_group(c)[f'{xsearch} Error (16%)'][graph_mask],g.get_group(c)[f'{xsearch} Error (84%)'][graph_mask]),
+                #                 yerr=(g.get_group(c)[f'{ysearch} Error (16%)'][graph_mask],g.get_group(c)[f'{ysearch} Error (84%)'][graph_mask]),fmt='.',color=color_agn[b])
             except:
                 continue
         b+=1
@@ -1757,7 +2330,7 @@ def gini_m20_scatter():
     # plt.show()
 
     highlight_mergers(plt,x=xsearch,y=ysearch)
-    highlight_clumps_and_arms(plt,x=xsearch,y=ysearch)
+    # highlight_clumps_and_arms(plt,x=xsearch,y=ysearch)
 
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
@@ -1772,8 +2345,8 @@ def gini_m20_scatter():
     plt.show()
     plt.close()
 
-gini_m20_scatter()
-exit()
+# gini_m20_scatter()
+# exit()
 
 def gini_C_scatter():
     ### scatter the asymmetry vs gini
@@ -1793,18 +2366,25 @@ def gini_C_scatter():
     color_agn = ['#1f77b4','#ff7f0e','#2ca02c']
     
     ### plot the avg & std of each section
-    # b=0
-    # for i in [agn_dom,comp_dom,sf_dom]:
-    #     plt.errorbar(x=(np.max(i[xsearch])+np.min(i[xsearch]))/2,y=np.median(i[ysearch]),xerr=np.std(i[xsearch]),yerr=np.std(i[ysearch]),c=color_agn[b],fmt='.',alpha=0.5)
-    #     b+=1
+    b=0
+    for i in [agn_dom,comp_dom,sf_dom]:
+        graph_mask = (np.isfinite(i[ysearch])) & (np.isfinite(i[xsearch]))
+
+        plt.errorbar(x=np.median(i[xsearch][graph_mask]),y=np.median(i[ysearch][graph_mask]),xerr=np.std(i[xsearch][graph_mask]),yerr=np.std(i[ysearch][graph_mask]),c=color_agn[b],fmt='.',alpha=0.5)
+        b+=1
 
 
     b=0
     for g in [agn_class,comp_class,sf_class]:
         for c in main_colors:
             try:
-                plt.scatter(g.get_group(c)[xsearch],g.get_group(c)[ysearch],40,marker=main_colors[c][1],facecolor="none", edgecolor=color_agn[b],lw=1.5,label=(f'{lab[b]}-{c}'))
-                # plt.legend()
+                graph_mask = (np.isfinite(g.get_group(c)[ysearch])) & (np.isfinite(g.get_group(c)[xsearch]))
+
+                plt.scatter(g.get_group(c)[xsearch][graph_mask],g.get_group(c)[ysearch][graph_mask],40,marker=main_colors[c][1],facecolor="none", edgecolor=color_agn[b],lw=1.5,label=(f'{lab[b]}-{c}'))
+                ## for getting errorbars
+                plt.errorbar(g.get_group(c)[xsearch][graph_mask],g.get_group(c)[ysearch][graph_mask],xerr=(g.get_group(c)[f'{xsearch} Error (16%)'][graph_mask],g.get_group(c)[f'{xsearch} Error (84%)'][graph_mask]),
+                                yerr=(g.get_group(c)[f'{ysearch} Error (16%)'][graph_mask],g.get_group(c)[f'{ysearch} Error (84%)'][graph_mask]),fmt='.',color=color_agn[b])
+
             except:
                 continue
         b+=1
@@ -1823,11 +2403,14 @@ def gini_C_scatter():
 
     plt.title(f'{ylabel} vs {xlabel}')
     # plt.gca().invert_xaxis()
-    plt.savefig(f'{working_directory}/{savename}',dpi=300)
+    # plt.savefig(f'{working_directory}/{savename}',dpi=300)
     plt.show()
     plt.close()
 
-def gini_A_scatter():
+# gini_C_scatter()
+# exit()
+
+def gini_A_scatter(): # haven't updated with error bars (10/26/24)
     ### scatter the asymmetry vs gini
     xlabel = 'Asymmetry (A)'
     ylabel = 'Gini'
@@ -1902,7 +2485,9 @@ def m20_A_scatter():
     ### plot the avg & std of each section
     b=0
     for i in [agn_dom,comp_dom,sf_dom]:
-        plt.errorbar(x=(np.max(i[xsearch])+np.min(i[xsearch]))/2,y=np.median(i[ysearch]),xerr=np.std(i[xsearch]),yerr=np.std(i[ysearch]),c=color_agn[b],fmt='.',alpha=0.5)
+        graph_mask = (np.isfinite(i[ysearch])) & (np.isfinite(i[xsearch]))
+
+        plt.errorbar(x=np.median(i[xsearch][graph_mask]),y=np.median(i[ysearch][graph_mask]),xerr=np.std(i[xsearch][graph_mask]),yerr=np.std(i[ysearch][graph_mask]),c=color_agn[b],fmt='.',alpha=0.5)
         b+=1
 
 
@@ -1910,8 +2495,13 @@ def m20_A_scatter():
     for g in [agn_class,comp_class,sf_class]:
         for c in main_colors:
             try:
-                plt.scatter(g.get_group(c)[xsearch],g.get_group(c)[ysearch],40,marker=main_colors[c][1],facecolor="none", edgecolor=color_agn[b],lw=1.5,label=(f'{lab[b]}-{c}'))
-                # plt.legend()
+                graph_mask = (np.isfinite(g.get_group(c)[ysearch])) & (np.isfinite(g.get_group(c)[xsearch]))
+
+                plt.scatter(g.get_group(c)[xsearch][graph_mask],g.get_group(c)[ysearch][graph_mask],40,marker=main_colors[c][1],facecolor="none", edgecolor=color_agn[b],lw=1.5,label=(f'{lab[b]}-{c}'))
+                ## for getting errorbars
+                plt.errorbar(g.get_group(c)[xsearch][graph_mask],g.get_group(c)[ysearch][graph_mask],xerr=(g.get_group(c)[f'{xsearch} Error (16%)'][graph_mask],g.get_group(c)[f'{xsearch} Error (84%)'][graph_mask]),
+                                yerr=(g.get_group(c)[f'{ysearch} Error (16%)'][graph_mask],g.get_group(c)[f'{ysearch} Error (84%)'][graph_mask]),fmt='.',color=color_agn[b])
+
             except:
                 continue
         b+=1
@@ -1919,7 +2509,7 @@ def m20_A_scatter():
     # plt.show()
 
     highlight_mergers(plt,x=xsearch,y=ysearch)
-    highlight_clumps_and_arms(plt,x=xsearch,y=ysearch)
+    # highlight_clumps_and_arms(plt,x=xsearch,y=ysearch)
 
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
@@ -1934,31 +2524,35 @@ def m20_A_scatter():
     plt.show()
     plt.close()
 
-m20_A_scatter()
-exit()
+# m20_A_scatter()
+# exit()
 
 
-#### older graphs that haven't been update (7/15)
+#### older graphs that haven't been update (7/29)
 # type_z_hist()
-
 # testing_agn_frac_z()
-
 # agn_frac_merger_scatter()
-
 # agn_frac_z()
+# A_S_scatter() # not using this one as of 7/29
+# S_agn_scatter() # not using this one as of 7/29
+# A_C_scatter() # not using this one as of 7/29
+
 ######################################################
-#### used graphs as of (7/15)
+#### used graphs as of (7/29)
 # agn_frac_hist()
 # agn_frac_merger_hist()
 # compare_subsample()
-## non parametric measurements
 
-# A_S_scatter() # not using this one as of 7/29
-# A_C_scatter()
-# A_agn_scatter()
-# C_agn_scatter()
-# S_agn_scatter() # not using this one as of 7/29
-# gini_m20_scatter()
+## non parametric measurements
+A_agn_histogram()
+A_agn_scatter()
+C_agn_scatter()
+gini_agn_histogram()
+gini_agn_scatter()
+gini_C_scatter()
+m20_A_scatter()
+gini_m20_scatter()
+
 
 
 

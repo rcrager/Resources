@@ -16,8 +16,46 @@ from import_data import get_sources
 
 source_data = get_sources()
 
+
+
 # tolerance to search for (arcsec) (will be +-)
 tolerance = 2.0
+
+
+def check_10_14_sources():
+    ### testing for Pope's message from 10/14 for the following message:
+    # Can please you cross match 6 positions against the GOODS-S Kirkpatrick sources?
+    # 53.183712 -27.7615929
+    # 53.1170692 -27.867382
+    # 53.1161919 -27.8612804
+    # 53.1631851 -27.8124657
+    # 53.2045212 -27.7554264
+    # 53.1668472 -27.7385998
+    # Let me know if any of these are within 3" of any of the K12 GOODS-S sources. Thanks!
+
+    tolerance = 3.0
+    ids = [1,2,3,4,5,6]
+    pos_ra = [53.183712,53.1170692,53.1161919,53.1631851,53.2045212,53.1668472]
+    pos_dec = [-27.7615929,-27.867382,-27.8612804,-27.8124657,-27.7554264,-27.7385998]
+    new_sources = Table((ids,pos_ra,pos_dec),names=('ID','RA','DEC'))
+    # print(new_sources)
+
+    catalog = SkyCoord(source_data['RA Adjusted (Kirk)']*u.deg,source_data['Decl. Adjusted (Kirk)']*u.deg)
+    search = SkyCoord(new_sources['RA']*u.deg,new_sources['DEC']*u.deg)
+
+    ### match two catalogs of data
+    ### gets all matches for the search catalog to the full catalog within the tolerance
+    ### then we can just loop through this catalog[idxc] list to create the regions file
+    ### https://keflavich-astropy.readthedocs.io/en/latest/coordinates/matchsep.html
+    idx_search, idx_catalog, d2d, d3d = catalog.search_around_sky(search, tolerance*u.arcsec)  
+    print(len(catalog[idx_catalog]))
+    coords_match = catalog[idx_catalog]
+    make_regions(new_sources['RA'],new_sources['DEC'],0,3.0)
+
+    # exit()
+
+check_10_14_sources()
+
 '''
 ### for the GN format is now swapped to [:,0] for RA, vs [0,:] for ra from GS
 kirk_low_ra = kirk_galaxy_coords[:,0]-tolerance
@@ -117,6 +155,7 @@ def make_regions(ra,dec,label,size,title=None):
         print(f'point({ra[c]}, {dec[c]})  # point=x {size} text={{{int(label[c])}}}')
         c+=1
 
+
 def make_circles(ra,dec,label):
     '''function to make regions file given equal size ra,dec,label arrays with size radius.
         ra & dec can be in (") or (deg)
@@ -126,7 +165,7 @@ def make_circles(ra,dec,label):
     for i in ra:
         if ra[c]==0.0:
             break
-        print(f'circle({ra[c]}, {dec[c]}, 1.0")  # text={{{label[c]}}}')
+        print(f'circle({ra[c]}, {dec[c]}, 3.0")  # text={{{label[c]}}}')
         c+=1
 
 pt_size = 20

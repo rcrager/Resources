@@ -6,7 +6,7 @@ import os
 import time
 
 
-working_directory = "/home/robbler/research/Analysis_graphs/"
+working_directory = "/home/robbler/research/data_import/"
 details_filename = "table_4_GNGS_edited - tsv_export.tsv"
 detailed_file = working_directory+details_filename
 
@@ -36,6 +36,13 @@ table = pd.read_csv(detailed_file,sep='\t')
 table.sort_values(by='ID',ascending=True,inplace=True)
 pd.set_option('display.precision', 10)
 pd.set_option('display.max_colwidth', None)
+
+# def remove_trouble_values(removename,statname):
+#     ## function to remove the trouble values from statmorph table
+#     ## removename = file name of the IDs and measurement names to throw out
+#     ## statname = file name of statmorph measurements
+
+
 
 ######## Script to import data because I keep copy pasting these lines
 ######## Meant to import from TSV, CSV, or ' 'SV data like what comes from auto copy-pasting columns from spreadsheets...
@@ -72,7 +79,9 @@ def add_obs_filters(tab,search_z='JADES z'):
         tab['Obs WV (um)'] = np.where((tab[search_z]>filters_dict[f][0]) & (tab[search_z]<=filters_dict[f][1]),wv_dict[f],tab['Obs WV (um)'])
 
     #### now find the rest frame wavelength for each source
-    tab['Rest WV (um)'] = tab['Obs WV (um)']/(1+tab[search_z])
+    # tab['Rest WV (um)'] = tab['Obs WV (um)']/(1+tab[search_z])
+    tab['Rest WV (um)'] = wv_dict['f277w']/(1+tab[search_z])
+
 
     return tab
 
